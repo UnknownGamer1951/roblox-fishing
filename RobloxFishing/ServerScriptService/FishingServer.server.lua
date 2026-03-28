@@ -200,14 +200,21 @@ end)
 -- -------------------------------------------------------
 -- Player lifecycle
 -- -------------------------------------------------------
-Players.PlayerAdded:Connect(function(player)
+local function initPlayer(player)
     playerState[player] = {
         isFishing   = false,
         biting      = false,
         currentFish = nil,
         bobberPart  = nil,
     }
-end)
+end
+
+-- Handle players who joined before this script loaded (Studio solo playtest)
+for _, player in ipairs(Players:GetPlayers()) do
+    initPlayer(player)
+end
+
+Players.PlayerAdded:Connect(initPlayer)
 
 Players.PlayerRemoving:Connect(function(player)
     local state = playerState[player]
