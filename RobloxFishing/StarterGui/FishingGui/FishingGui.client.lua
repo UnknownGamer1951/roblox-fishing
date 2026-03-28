@@ -43,7 +43,7 @@ statusLabel.Parent                 = statusFrame
 -- ============================================================
 local coinsFrame = Instance.new("Frame")
 coinsFrame.Name                   = "CoinsFrame"
-coinsFrame.Size                   = UDim2.new(0, 160, 0, 44)
+coinsFrame.Size                   = UDim2.new(0, 150, 0, 44)
 coinsFrame.Position               = UDim2.new(0, 18, 0, 18)
 coinsFrame.BackgroundColor3       = Color3.fromRGB(30, 20, 0)
 coinsFrame.BackgroundTransparency = 0.25
@@ -62,6 +62,31 @@ coinsLabel.TextScaled             = true
 coinsLabel.Font                   = Enum.Font.GothamBold
 coinsLabel.TextXAlignment         = Enum.TextXAlignment.Left
 coinsLabel.Parent                 = coinsFrame
+
+-- ============================================================
+-- STARS DISPLAY (top-left, below coins)
+-- ============================================================
+local starsFrame = Instance.new("Frame")
+starsFrame.Name                   = "StarsFrame"
+starsFrame.Size                   = UDim2.new(0, 150, 0, 44)
+starsFrame.Position               = UDim2.new(0, 18, 0, 68)
+starsFrame.BackgroundColor3       = Color3.fromRGB(20, 0, 40)
+starsFrame.BackgroundTransparency = 0.25
+starsFrame.BorderSizePixel        = 0
+starsFrame.Parent                 = screenGui
+Instance.new("UICorner", starsFrame).CornerRadius = UDim.new(0, 10)
+
+local starsLabel = Instance.new("TextLabel")
+starsLabel.Name                   = "StarsLabel"
+starsLabel.Size                   = UDim2.new(1, -8, 1, 0)
+starsLabel.Position               = UDim2.new(0, 4, 0, 0)
+starsLabel.BackgroundTransparency = 1
+starsLabel.Text                   = "⭐ 0"
+starsLabel.TextColor3             = Color3.fromRGB(200, 160, 255)
+starsLabel.TextScaled             = true
+starsLabel.Font                   = Enum.Font.GothamBold
+starsLabel.TextXAlignment         = Enum.TextXAlignment.Left
+starsLabel.Parent                 = starsFrame
 
 -- ============================================================
 -- ACTION BUTTON (hidden — kept for legacy / mobile fallback)
@@ -286,7 +311,7 @@ local function makeUpgradeCard(def)
 	local nextLabel = Instance.new("TextLabel")
 	nextLabel.Name  = "NextLabel"
 	nextLabel.Size  = UDim2.new(1, -16, 0, 24)
-	nextLabel.Position = UDim2.new(0, 8, 0, 66)
+	nextLabel.Position = UDim2.new(0, 8, 0, 62)
 	nextLabel.BackgroundTransparency = 1
 	nextLabel.Text  = "Next: —"
 	nextLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
@@ -294,6 +319,19 @@ local function makeUpgradeCard(def)
 	nextLabel.Font  = Enum.Font.Gotham
 	nextLabel.TextXAlignment = Enum.TextXAlignment.Left
 	nextLabel.Parent = card
+
+	-- Star cost label
+	local starCostLabel = Instance.new("TextLabel")
+	starCostLabel.Name  = "StarCostLabel"
+	starCostLabel.Size  = UDim2.new(1, -16, 0, 18)
+	starCostLabel.Position = UDim2.new(0, 8, 0, 86)
+	starCostLabel.BackgroundTransparency = 1
+	starCostLabel.Text  = ""
+	starCostLabel.TextColor3 = Color3.fromRGB(200, 160, 255)
+	starCostLabel.TextScaled = true
+	starCostLabel.Font  = Enum.Font.Gotham
+	starCostLabel.TextXAlignment = Enum.TextXAlignment.Left
+	starCostLabel.Parent = card
 
 	-- Buy button
 	local buyBtn = Instance.new("TextButton")
@@ -309,23 +347,22 @@ local function makeUpgradeCard(def)
 	buyBtn.Parent           = card
 	Instance.new("UICorner", buyBtn).CornerRadius = UDim.new(0, 8)
 
-	buyButtons[def.type] = { btn = buyBtn, curLabel = curLabel, nextLabel = nextLabel }
+	buyButtons[def.type] = { btn = buyBtn, curLabel = curLabel, nextLabel = nextLabel, starCostLabel = starCostLabel }
 
 	buyBtn.Activated:Connect(function()
 		local upgrades = Remotes.GetUpgrades:InvokeServer()
 		local levelKey = def.type:lower() .. "Level"
 		local currentLvl = upgrades[levelKey] or 1
 		local targetLvl  = currentLvl + 1
-		local ok, result, newCoins = Remotes.BuyUpgrade:InvokeServer(def.type, targetLvl)
+		local ok, result, newCoins, newStars = Remotes.BuyUpgrade:InvokeServer(def.type, targetLvl)
 		if ok then
 			coinsLabel.Text     = "🪙 " .. (newCoins or 0)
-			shopCoinsLabel.Text = "🪙 " .. (newCoins or 0) .. " coins"
-			refreshShop()  -- re-draw after purchase
+			starsLabel.Text     = "⭐ " .. (newStars or 0)
+			shopCoinsLabel.Text = "🪙 " .. (newCoins or 0) .. "  ⭐ " .. (newStars or 0)
+			refreshShop()
 		else
-			-- Flash button red to indicate failure
 			buyBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
 			task.delay(0.8, function() buyBtn.BackgroundColor3 = Color3.fromRGB(60,160,60) end)
-			-- Show error briefly in next label
 			local prevText = nextLabel.Text
 			nextLabel.Text = "✗ " .. tostring(result)
 			task.delay(2, function() nextLabel.Text = prevText end)
@@ -339,11 +376,14 @@ for _, def in ipairs(UPGRADE_DEFS) do
 	makeUpgradeCard(def)
 end
 
--- Refresh shop display with current levels/coins
+-- Refresh shop display with current levels/coins/stars
 function refreshShop()
 	local upgrades = Remotes.GetUpgrades:InvokeServer()
-	coinsLabel.Text     = "🪙 " .. (upgrades.coins or 0)
-	shopCoinsLabel.Text = "🪙 " .. (upgrades.coins or 0) .. " coins"
+	local coins    = upgrades.coins or 0
+	local stars    = upgrades.stars or 0
+	coinsLabel.Text     = "🪙 " .. coins
+	starsLabel.Text     = "⭐ " .. stars
+	shopCoinsLabel.Text = "🪙 " .. coins .. "  ⭐ " .. stars
 
 	local levelKeys = { Bait = "baitLevel", Hook = "hookLevel", Rod = "rodLevel" }
 	for upgradeType, refs in pairs(buyButtons) do
@@ -356,14 +396,18 @@ function refreshShop()
 		refs.curLabel.Text = "Current: " .. (curTier and curTier.name or "?")
 
 		if nextTier then
-			refs.nextLabel.Text         = "Next: " .. nextTier.name .. " (🪙 " .. nextTier.cost .. ")"
-			refs.btn.Visible            = true
-			refs.btn.Text               = "Upgrade"
-			refs.btn.BackgroundColor3   = (upgrades.coins or 0) >= nextTier.cost
+			local sc = nextTier.starCost or 0
+			refs.nextLabel.Text  = "Next: " .. nextTier.name .. " (🪙 " .. nextTier.cost .. ")"
+			refs.starCostLabel.Text = sc > 0 and ("  + ⭐ " .. sc .. " stars required") or ""
+			refs.btn.Visible     = true
+			refs.btn.Text        = "Upgrade"
+			local canAfford      = coins >= nextTier.cost and stars >= sc
+			refs.btn.BackgroundColor3 = canAfford
 				and Color3.fromRGB(60, 160, 60)
 				or  Color3.fromRGB(100, 100, 100)
 		else
 			refs.nextLabel.Text       = "✨ MAX LEVEL"
+			refs.starCostLabel.Text   = ""
 			refs.btn.Visible          = false
 		end
 	end
@@ -485,65 +529,105 @@ holdHint.Font             = Enum.Font.Gotham
 holdHint.Parent           = mgPanel
 
 -- ============================================================
--- TOURNEY BUTTON (bottom right)
+-- TOURNAMENT COUNTDOWN (bottom-right — always visible)
+-- Shows "Next tourney in X:XX" or "🏆 TOURNAMENT ACTIVE X:XX"
 -- ============================================================
-local tourneyBtn = Instance.new("TextButton")
-tourneyBtn.Name             = "TourneyButton"
-tourneyBtn.Size             = UDim2.new(0, 165, 0, 52)
-tourneyBtn.Position         = UDim2.new(1, -185, 1, -72)
-tourneyBtn.BackgroundColor3 = Color3.fromRGB(210, 110, 0)
-tourneyBtn.BorderSizePixel  = 0
-tourneyBtn.Text             = "🏆 TOURNEY"
-tourneyBtn.TextColor3       = Color3.fromRGB(255, 255, 255)
-tourneyBtn.TextScaled       = true
-tourneyBtn.Font             = Enum.Font.GothamBold
-tourneyBtn.Parent           = screenGui
-Instance.new("UICorner", tourneyBtn).CornerRadius = UDim.new(0, 10)
-tourneyBtn.Activated:Connect(function()
-	local r = screenGui:FindFirstChild("TourneyResult")
-	if r then r.Visible = false end
-	Remotes.JoinTournament:FireServer()
+local tourneyCountdownFrame = Instance.new("Frame")
+tourneyCountdownFrame.Name             = "TourneyCountdown"
+tourneyCountdownFrame.Size             = UDim2.new(0, 200, 0, 52)
+tourneyCountdownFrame.Position         = UDim2.new(1, -218, 1, -72)
+tourneyCountdownFrame.BackgroundColor3 = Color3.fromRGB(20, 10, 40)
+tourneyCountdownFrame.BackgroundTransparency = 0.2
+tourneyCountdownFrame.BorderSizePixel  = 0
+tourneyCountdownFrame.Parent           = screenGui
+Instance.new("UICorner", tourneyCountdownFrame).CornerRadius = UDim.new(0, 10)
+
+local countdownLabel = Instance.new("TextLabel")
+countdownLabel.Name             = "CountdownLabel"
+countdownLabel.Size             = UDim2.new(1, -8, 0.55, 0)
+countdownLabel.Position         = UDim2.new(0, 4, 0, 2)
+countdownLabel.BackgroundTransparency = 1
+countdownLabel.Text             = "🏆 Next tourney: --:--"
+countdownLabel.TextColor3       = Color3.fromRGB(255, 220, 60)
+countdownLabel.TextScaled       = true
+countdownLabel.Font             = Enum.Font.GothamBold
+countdownLabel.TextXAlignment   = Enum.TextXAlignment.Left
+countdownLabel.Parent           = tourneyCountdownFrame
+
+local countdownSub = Instance.new("TextLabel")
+countdownSub.Size             = UDim2.new(1, -8, 0.4, 0)
+countdownSub.Position         = UDim2.new(0, 4, 0.58, 0)
+countdownSub.BackgroundTransparency = 1
+countdownSub.Text             = "server-wide event"
+countdownSub.TextColor3       = Color3.fromRGB(160, 140, 200)
+countdownSub.TextScaled       = true
+countdownSub.Font             = Enum.Font.Gotham
+countdownSub.TextXAlignment   = Enum.TextXAlignment.Left
+countdownSub.Parent           = tourneyCountdownFrame
+
+-- "Buy early start" button (shown when countdown is long; uses Robux)
+local earlyBtn = Instance.new("TextButton")
+earlyBtn.Name             = "EarlyStartBtn"
+earlyBtn.Size             = UDim2.new(0, 200, 0, 36)
+earlyBtn.Position         = UDim2.new(1, -218, 1, -114)
+earlyBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+earlyBtn.BorderSizePixel  = 0
+earlyBtn.Text             = "⚡ Buy Early Start (R$)"
+earlyBtn.TextColor3       = Color3.fromRGB(255, 255, 255)
+earlyBtn.TextScaled       = true
+earlyBtn.Font             = Enum.Font.GothamBold
+earlyBtn.Visible          = false   -- shown only when tourney isn't active
+earlyBtn.Parent           = screenGui
+Instance.new("UICorner", earlyBtn).CornerRadius = UDim.new(0, 8)
+earlyBtn.Activated:Connect(function()
+	Remotes.BuyTournament:FireServer()
 end)
 
 -- ============================================================
--- TOURNEY HUD (top right, visible during active run)
+-- TOURNEY HUD (top-right, active during tournament)
 -- ============================================================
 local tourneyHUD = Instance.new("Frame")
 tourneyHUD.Name             = "TourneyHUD"
-tourneyHUD.Size             = UDim2.new(0, 190, 0, 100)
-tourneyHUD.Position         = UDim2.new(1, -210, 0, 18)
+tourneyHUD.Size             = UDim2.new(0, 210, 0, 130)
+tourneyHUD.Position         = UDim2.new(1, -228, 0, 18)
 tourneyHUD.BackgroundColor3 = Color3.fromRGB(12, 12, 45)
-tourneyHUD.BackgroundTransparency = 0.18
+tourneyHUD.BackgroundTransparency = 0.15
 tourneyHUD.BorderSizePixel  = 0
 tourneyHUD.Visible          = false
 tourneyHUD.Parent           = screenGui
 Instance.new("UICorner", tourneyHUD).CornerRadius = UDim.new(0, 10)
 
 local timerLabel = Instance.new("TextLabel")
-timerLabel.Name    = "TimerLabel"; timerLabel.Size = UDim2.new(1,-10,0,36); timerLabel.Position = UDim2.new(0,5,0,4)
-timerLabel.BackgroundTransparency = 1; timerLabel.Text = "⏱ 3:00"
+timerLabel.Name = "TimerLabel"; timerLabel.Size = UDim2.new(1,-10,0,36); timerLabel.Position = UDim2.new(0,5,0,4)
+timerLabel.BackgroundTransparency = 1; timerLabel.Text = "⏱ 5:00"
 timerLabel.TextColor3 = Color3.fromRGB(255,220,60); timerLabel.TextScaled = true
 timerLabel.Font = Enum.Font.GothamBold; timerLabel.Parent = tourneyHUD
 
 local fishCountLabel = Instance.new("TextLabel")
-fishCountLabel.Name = "FishCountLabel"; fishCountLabel.Size = UDim2.new(1,-10,0,28); fishCountLabel.Position = UDim2.new(0,5,0,38)
-fishCountLabel.BackgroundTransparency = 1; fishCountLabel.Text = "🐟 0 fish this run"
+fishCountLabel.Name = "FishCountLabel"; fishCountLabel.Size = UDim2.new(1,-10,0,28); fishCountLabel.Position = UDim2.new(0,5,0,40)
+fishCountLabel.BackgroundTransparency = 1; fishCountLabel.Text = "🐟 0 fish caught"
 fishCountLabel.TextColor3 = Color3.fromRGB(170,255,170); fishCountLabel.TextScaled = true
 fishCountLabel.Font = Enum.Font.Gotham; fishCountLabel.Parent = tourneyHUD
 
-local pointsLabel = Instance.new("TextLabel")
-pointsLabel.Name = "PointsLabel"; pointsLabel.Size = UDim2.new(1,-10,0,28); pointsLabel.Position = UDim2.new(0,5,0,66)
-pointsLabel.BackgroundTransparency = 1; pointsLabel.Text = "⭐ 0 pts total"
-pointsLabel.TextColor3 = Color3.fromRGB(255,245,180); pointsLabel.TextScaled = true
-pointsLabel.Font = Enum.Font.Gotham; pointsLabel.Parent = tourneyHUD
+local rankLabel = Instance.new("TextLabel")
+rankLabel.Name = "RankLabel"; rankLabel.Size = UDim2.new(1,-10,0,28); rankLabel.Position = UDim2.new(0,5,0,68)
+rankLabel.BackgroundTransparency = 1; rankLabel.Text = "Rank: —"
+rankLabel.TextColor3 = Color3.fromRGB(255,245,180); rankLabel.TextScaled = true
+rankLabel.Font = Enum.Font.Gotham; rankLabel.Parent = tourneyHUD
+
+local starChanceLabel = Instance.new("TextLabel")
+starChanceLabel.Name = "StarChanceLabel"; starChanceLabel.Size = UDim2.new(1,-10,0,24); starChanceLabel.Position = UDim2.new(0,5,0,97)
+starChanceLabel.BackgroundTransparency = 1; starChanceLabel.Text = "⭐ 1/3 star chance!"
+starChanceLabel.TextColor3 = Color3.fromRGB(200,160,255); starChanceLabel.TextScaled = true
+starChanceLabel.Font = Enum.Font.Gotham; starChanceLabel.Parent = tourneyHUD
 
 -- ============================================================
 -- TOURNEY RESULT POPUP
 -- ============================================================
 local tourneyResult = Instance.new("Frame")
 tourneyResult.Name             = "TourneyResult"
-tourneyResult.Size             = UDim2.new(0, 370, 0, 305)
-tourneyResult.Position         = UDim2.new(0.5, -185, 0.5, -152)
+tourneyResult.Size             = UDim2.new(0, 400, 0, 420)
+tourneyResult.Position         = UDim2.new(0.5, -200, 0.5, -210)
 tourneyResult.BackgroundColor3 = Color3.fromRGB(10, 14, 42)
 tourneyResult.BackgroundTransparency = 0.05
 tourneyResult.BorderSizePixel  = 0
@@ -551,43 +635,136 @@ tourneyResult.Visible          = false
 tourneyResult.Parent           = screenGui
 Instance.new("UICorner", tourneyResult).CornerRadius = UDim.new(0, 16)
 
-local function trLabel(name, text, yOff, h, color, font)
-	local lbl = Instance.new("TextLabel")
-	lbl.Name = name; lbl.Size = UDim2.new(1,-20,0,h); lbl.Position = UDim2.new(0,10,0,yOff)
-	lbl.BackgroundTransparency = 1; lbl.Text = text; lbl.TextColor3 = color or Color3.new(1,1,1)
-	lbl.TextScaled = true; lbl.Font = font or Enum.Font.Gotham; lbl.Parent = tourneyResult
-	return lbl
-end
-trLabel("ResultTitle","⏰ TOURNEY OVER!",                        8,  46, Color3.fromRGB(255,220,60),  Enum.Font.GothamBold)
-trLabel("TrophyLabel","",                                        56,  48, Color3.fromRGB(255,200,0),   Enum.Font.GothamBold)
-trLabel("FishLabel",  "",                                       106,  34, Color3.fromRGB(170,255,170), Enum.Font.Gotham)
-trLabel("BonusLabel", "",                                       142,  30, Color3.fromRGB(255,210,80),  Enum.Font.Gotham)
-trLabel("TotalLabel", "",                                       174,  36, Color3.fromRGB(150,210,255), Enum.Font.GothamBold)
-trLabel("TrophyHint", "🥉 5 pts  🥈 15 pts  🥇 30 pts",          212,  24, Color3.fromRGB(120,120,120), Enum.Font.Gotham)
+local trResultTitle = Instance.new("TextLabel")
+trResultTitle.Size = UDim2.new(1,-20,0,46); trResultTitle.Position = UDim2.new(0,10,0,8)
+trResultTitle.BackgroundTransparency=1; trResultTitle.Text="⏰ TOURNAMENT OVER!"
+trResultTitle.TextColor3=Color3.fromRGB(255,220,60); trResultTitle.TextScaled=true
+trResultTitle.Font=Enum.Font.GothamBold; trResultTitle.Parent=tourneyResult
 
-local playAgainBtn = Instance.new("TextButton")
-playAgainBtn.Name             = "PlayAgainBtn"
-playAgainBtn.Size             = UDim2.new(0.6, 0, 0, 46)
-playAgainBtn.Position         = UDim2.new(0.2, 0, 0, 248)
-playAgainBtn.BackgroundColor3 = Color3.fromRGB(210, 110, 0)
-playAgainBtn.BorderSizePixel  = 0
-playAgainBtn.Text             = "🎣 Play Again!"
-playAgainBtn.TextColor3       = Color3.fromRGB(255, 255, 255)
-playAgainBtn.TextScaled       = true
-playAgainBtn.Font             = Enum.Font.GothamBold
-playAgainBtn.Parent           = tourneyResult
-Instance.new("UICorner", playAgainBtn).CornerRadius = UDim.new(0, 10)
-playAgainBtn.Activated:Connect(function()
-	tourneyResult.Visible = false
-	Remotes.JoinTournament:FireServer()
-end)
+local trTrophyLabel = Instance.new("TextLabel")
+trTrophyLabel.Name="TrophyLabel"; trTrophyLabel.Size=UDim2.new(1,-20,0,48); trTrophyLabel.Position=UDim2.new(0,10,0,56)
+trTrophyLabel.BackgroundTransparency=1; trTrophyLabel.Text=""
+trTrophyLabel.TextColor3=Color3.fromRGB(255,200,0); trTrophyLabel.TextScaled=true
+trTrophyLabel.Font=Enum.Font.GothamBold; trTrophyLabel.Parent=tourneyResult
+
+local trFishLabel = Instance.new("TextLabel")
+trFishLabel.Name="FishLabel"; trFishLabel.Size=UDim2.new(1,-20,0,30); trFishLabel.Position=UDim2.new(0,10,0,106)
+trFishLabel.BackgroundTransparency=1; trFishLabel.Text=""
+trFishLabel.TextColor3=Color3.fromRGB(170,255,170); trFishLabel.TextScaled=true
+trFishLabel.Font=Enum.Font.Gotham; trFishLabel.Parent=tourneyResult
+
+-- Leaderboard (scrolling)
+local lbScroll = Instance.new("ScrollingFrame")
+lbScroll.Name="LeaderboardScroll"; lbScroll.Size=UDim2.new(1,-20,0,180); lbScroll.Position=UDim2.new(0,10,0,142)
+lbScroll.BackgroundColor3=Color3.fromRGB(15,15,35); lbScroll.BackgroundTransparency=0.3
+lbScroll.BorderSizePixel=0; lbScroll.CanvasSize=UDim2.new(0,0,0,0)
+lbScroll.AutomaticCanvasSize=Enum.AutomaticSize.Y; lbScroll.ScrollBarThickness=4; lbScroll.Parent=tourneyResult
+Instance.new("UICorner",lbScroll).CornerRadius=UDim.new(0,8)
+local lbLayout=Instance.new("UIListLayout",lbScroll); lbLayout.Padding=UDim.new(0,2); lbLayout.SortOrder=Enum.SortOrder.LayoutOrder
+
+local trCloseBtn = Instance.new("TextButton")
+trCloseBtn.Size=UDim2.new(0.5,0,0,42); trCloseBtn.Position=UDim2.new(0.25,0,0,368)
+trCloseBtn.BackgroundColor3=Color3.fromRGB(60,60,80); trCloseBtn.BorderSizePixel=0
+trCloseBtn.Text="Close"; trCloseBtn.TextColor3=Color3.fromRGB(200,200,200)
+trCloseBtn.TextScaled=true; trCloseBtn.Font=Enum.Font.GothamBold; trCloseBtn.Parent=tourneyResult
+Instance.new("UICorner",trCloseBtn).CornerRadius=UDim.new(0,10)
+trCloseBtn.Activated:Connect(function() tourneyResult.Visible=false end)
 
 -- ============================================================
--- COINS UPDATE (from server)
+-- CURRENCY UPDATES (from server)
 -- ============================================================
 Remotes.CoinsUpdate.OnClientEvent:Connect(function(coins)
 	coinsLabel.Text     = "🪙 " .. coins
-	shopCoinsLabel.Text = "🪙 " .. coins .. " coins"
+	shopCoinsLabel.Text = "🪙 " .. coins .. "  ⭐ " .. (starsLabel.Text:match("%d+") or "0")
+end)
+
+Remotes.StarsUpdate.OnClientEvent:Connect(function(stars)
+	starsLabel.Text     = "⭐ " .. stars
+	shopCoinsLabel.Text = "🪙 " .. (coinsLabel.Text:match("%d+") or "0") .. "  ⭐ " .. stars
+end)
+
+-- ============================================================
+-- TOURNAMENT EVENTS (server-wide)
+-- ============================================================
+local tourneyActiveTimer = 0
+
+Remotes.TournamentCountdown.OnClientEvent:Connect(function(secondsLeft, isActive)
+	if isActive then
+		-- Show active HUD, hide early-buy button
+		earlyBtn.Visible = false
+		local m = math.floor(secondsLeft / 60)
+		local s = secondsLeft % 60
+		countdownLabel.Text      = string.format("🏆 ACTIVE — %d:%02d left", m, s)
+		countdownLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+		countdownSub.Text        = "⭐ 1/3 star chance!"
+		tourneyHUD.Visible       = true
+		-- Update active HUD timer
+		timerLabel.Text      = string.format("⏱ %d:%02d", m, s)
+		timerLabel.TextColor3 = secondsLeft <= 30 and Color3.fromRGB(255,80,80) or Color3.fromRGB(255,220,60)
+	else
+		tourneyHUD.Visible   = false
+		earlyBtn.Visible     = secondsLeft > 60  -- only show buy button if >1 min until start
+		local m = math.floor(secondsLeft / 60)
+		local s = secondsLeft % 60
+		countdownLabel.Text      = string.format("🏆 Next tourney: %d:%02d", m, s)
+		countdownLabel.TextColor3 = Color3.fromRGB(255, 220, 60)
+		countdownSub.Text        = "server-wide event • 1/5 star chance"
+	end
+end)
+
+Remotes.TournamentStart.OnClientEvent:Connect(function(_duration)
+	fishCountLabel.Text  = "🐟 0 fish caught"
+	rankLabel.Text       = "Rank: —"
+	tourneyHUD.Visible   = true
+end)
+
+Remotes.TournamentPoints.OnClientEvent:Connect(function(myFish, leaderboardData)
+	fishCountLabel.Text = "🐟 " .. myFish .. " fish caught"
+	-- Find local player's rank
+	if type(leaderboardData) == "table" then
+		local localName = game:GetService("Players").LocalPlayer.Name
+		for i, entry in ipairs(leaderboardData) do
+			if entry.name == localName then
+				local medal = i == 1 and "🥇" or (i <= 3 and "🥈" or "🥉")
+				rankLabel.Text = medal .. " Rank #" .. i .. " / " .. #leaderboardData
+				break
+			end
+		end
+	end
+end)
+
+Remotes.TournamentEnd.OnClientEvent:Connect(function(data)
+	tourneyHUD.Visible = false
+	-- Trophy banner
+	local trophyStr = data.trophy or "none"
+	local bannerText
+	if     trophyStr == "Gold"   then bannerText = "🥇 You placed GOLD!"
+	elseif trophyStr == "Silver" then bannerText = "🥈 You placed SILVER!"
+	elseif trophyStr == "Bronze" then bannerText = "🥉 You placed BRONZE!"
+	else                              bannerText = "Better luck next time!"
+	end
+	trTrophyLabel.Text = bannerText
+	trFishLabel.Text   = "You caught " .. (data.fishCaught or 0) .. " fish"
+		.. (data.rank and data.rank > 0 and (" • Rank #" .. data.rank) or "")
+
+	-- Rebuild leaderboard rows
+	for _, c in ipairs(lbScroll:GetChildren()) do
+		if c:IsA("TextLabel") then c:Destroy() end
+	end
+	if type(data.leaderboard) == "table" then
+		for i, entry in ipairs(data.leaderboard) do
+			local medal = i == 1 and "🥇" or (i <= 3 and "🥈" or (entry.count >= 1 and "🥉" or "  "))
+			local row = Instance.new("TextLabel")
+			row.Size = UDim2.new(1,-8,0,26); row.BackgroundTransparency=1
+			row.Text = string.format("%s #%d  %s — %d fish", medal, i, entry.name, entry.count)
+			row.TextColor3 = i==1 and Color3.fromRGB(255,220,60)
+				or (i<=3 and Color3.fromRGB(200,200,255) or Color3.fromRGB(180,180,180))
+			row.TextScaled=true; row.Font=Enum.Font.Gotham
+			row.TextXAlignment=Enum.TextXAlignment.Left
+			row.LayoutOrder=i; row.Parent=lbScroll
+		end
+	end
+	tourneyResult.Visible = true
 end)
 
 -- ============================================================
@@ -1005,9 +1182,42 @@ if RunService:IsStudio() then
 	debugBtn.Activated:Connect(function()
 		Remotes.DebugGiveCoins:FireServer(1000)
 		debugBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 40)
-		task.delay(0.5, function()
-			debugBtn.BackgroundColor3 = Color3.fromRGB(110, 0, 170)
-		end)
+		task.delay(0.5, function() debugBtn.BackgroundColor3 = Color3.fromRGB(110, 0, 170) end)
+	end)
+
+	local debugStarsBtn = Instance.new("TextButton")
+	debugStarsBtn.Name             = "DebugStarsBtn"
+	debugStarsBtn.Size             = UDim2.new(0, 165, 0, 38)
+	debugStarsBtn.Position         = UDim2.new(1, -183, 0, 114)
+	debugStarsBtn.BackgroundColor3 = Color3.fromRGB(80, 0, 140)
+	debugStarsBtn.BorderSizePixel  = 0
+	debugStarsBtn.Text             = "🟣 DEBUG +20⭐"
+	debugStarsBtn.TextColor3       = Color3.fromRGB(255, 255, 255)
+	debugStarsBtn.TextScaled       = true
+	debugStarsBtn.Font             = Enum.Font.GothamBold
+	debugStarsBtn.Parent           = screenGui
+	Instance.new("UICorner", debugStarsBtn).CornerRadius = UDim.new(0, 8)
+	debugStarsBtn.Activated:Connect(function()
+		Remotes.DebugGiveStars:FireServer(20)
+		debugStarsBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 40)
+		task.delay(0.5, function() debugStarsBtn.BackgroundColor3 = Color3.fromRGB(80, 0, 140) end)
+	end)
+
+	-- Studio: force-start tournament for testing
+	local debugTourneyBtn = Instance.new("TextButton")
+	debugTourneyBtn.Name             = "DebugTourneyBtn"
+	debugTourneyBtn.Size             = UDim2.new(0, 165, 0, 38)
+	debugTourneyBtn.Position         = UDim2.new(1, -183, 0, 158)
+	debugTourneyBtn.BackgroundColor3 = Color3.fromRGB(180, 80, 0)
+	debugTourneyBtn.BorderSizePixel  = 0
+	debugTourneyBtn.Text             = "🏆 DEBUG TOURNEY"
+	debugTourneyBtn.TextColor3       = Color3.fromRGB(255, 255, 255)
+	debugTourneyBtn.TextScaled       = true
+	debugTourneyBtn.Font             = Enum.Font.GothamBold
+	debugTourneyBtn.Parent           = screenGui
+	Instance.new("UICorner", debugTourneyBtn).CornerRadius = UDim.new(0, 8)
+	debugTourneyBtn.Activated:Connect(function()
+		Remotes.BuyTournament:FireServer()
 	end)
 end
 

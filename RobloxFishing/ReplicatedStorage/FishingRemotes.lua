@@ -1,6 +1,5 @@
 -- ============================================================
 -- FishingRemotes.lua  (ModuleScript in ReplicatedStorage)
--- Shared remote events/functions for the fishing game
 -- ============================================================
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,7 +14,7 @@ local function getOrCreate(className, name)
 	return obj
 end
 
--- ── Core fishing ─────────────────────────────────────────────
+-- ── Core fishing ──────────────────────────────────────────────
 Remotes.CastLine     = getOrCreate("RemoteEvent",    "CastLine")
 Remotes.BobberLanded = getOrCreate("RemoteEvent",    "BobberLanded")
 Remotes.FishBiting   = getOrCreate("RemoteEvent",    "FishBiting")
@@ -25,19 +24,21 @@ Remotes.FishMissed   = getOrCreate("RemoteEvent",    "FishMissed")
 Remotes.GetInventory = getOrCreate("RemoteFunction", "GetInventory")
 
 -- ── Minigame ──────────────────────────────────────────────────
-Remotes.MinigameWon  = getOrCreate("RemoteEvent",    "MinigameWon")
-Remotes.MinigameLost = getOrCreate("RemoteEvent",    "MinigameLost")
+Remotes.MinigameWon  = getOrCreate("RemoteEvent", "MinigameWon")
+Remotes.MinigameLost = getOrCreate("RemoteEvent", "MinigameLost")
 
--- ── Tournament ────────────────────────────────────────────────
-Remotes.TournamentStart  = getOrCreate("RemoteEvent", "TournamentStart")
-Remotes.TournamentEnd    = getOrCreate("RemoteEvent", "TournamentEnd")
-Remotes.TournamentPoints = getOrCreate("RemoteEvent", "TournamentPoints")
-Remotes.JoinTournament   = getOrCreate("RemoteEvent", "JoinTournament")
+-- ── Tournament (server-wide) ──────────────────────────────────
+Remotes.TournamentCountdown = getOrCreate("RemoteEvent", "TournamentCountdown") -- fires every second: (secondsLeft, isActive)
+Remotes.TournamentStart     = getOrCreate("RemoteEvent", "TournamentStart")     -- (duration)
+Remotes.TournamentEnd       = getOrCreate("RemoteEvent", "TournamentEnd")       -- (leaderboard table)
+Remotes.TournamentPoints    = getOrCreate("RemoteEvent", "TournamentPoints")    -- (fishThisRound, yourRank)
+Remotes.BuyTournament       = getOrCreate("RemoteEvent", "BuyTournament")       -- client fires to buy with Robux
 
 -- ── Upgrades / Shop ───────────────────────────────────────────
 Remotes.BuyUpgrade  = getOrCreate("RemoteFunction", "BuyUpgrade")
 Remotes.GetUpgrades = getOrCreate("RemoteFunction", "GetUpgrades")
 Remotes.CoinsUpdate = getOrCreate("RemoteEvent",    "CoinsUpdate")
+Remotes.StarsUpdate = getOrCreate("RemoteEvent",    "StarsUpdate")
 Remotes.OpenShop    = getOrCreate("RemoteEvent",    "OpenShop")
 
 -- ── Achievements ──────────────────────────────────────────────
@@ -46,5 +47,6 @@ Remotes.GetAchievements     = getOrCreate("RemoteFunction", "GetAchievements")
 
 -- ── Debug (Studio only) ───────────────────────────────────────
 Remotes.DebugGiveCoins = getOrCreate("RemoteEvent", "DebugGiveCoins")
+Remotes.DebugGiveStars = getOrCreate("RemoteEvent", "DebugGiveStars")
 
 return Remotes

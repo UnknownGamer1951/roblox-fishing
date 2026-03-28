@@ -19,14 +19,17 @@ local minigameActive = false
 local isHoldingBar   = false
 
 -- ── Base difficulty per rarity (modified by server upgrade params) ──
+-- drainRate < fillRate so players can win; Legendary is tough but fair.
 local DIFFICULTY = {
-	Common    = { barHeight=0.32, fishAccel=3.5,  fishDamping=4.0, drainRate=0.12, fillRate=0.22 },
-	Uncommon  = { barHeight=0.26, fishAccel=5.0,  fishDamping=4.5, drainRate=0.17, fillRate=0.19 },
-	Rare      = { barHeight=0.20, fishAccel=7.0,  fishDamping=5.0, drainRate=0.22, fillRate=0.17 },
-	Legendary = { barHeight=0.14, fishAccel=10.0, fishDamping=5.5, drainRate=0.27, fillRate=0.15 },
+	Common    = { barHeight=0.34, fishAccel=3.0,  fishDamping=4.5, drainRate=0.09, fillRate=0.24 },
+	Uncommon  = { barHeight=0.28, fishAccel=4.5,  fishDamping=4.5, drainRate=0.13, fillRate=0.21 },
+	Rare      = { barHeight=0.22, fishAccel=6.0,  fishDamping=5.0, drainRate=0.17, fillRate=0.18 },
+	Legendary = { barHeight=0.16, fishAccel=8.5,  fishDamping=5.5, drainRate=0.22, fillRate=0.16 },
 }
 
-local mg = { barY=0.4, fishY=0.5, fishVel=0, fishTarget=0.5, targetTimer=0, progress=0.5, difficulty=nil }
+-- Progress starts at 0.3 — never at exactly 0 so the game can't
+-- instantly end on the first frame before the player has control.
+local mg = { barY=0.33, fishY=0.5, fishVel=0, fishTarget=0.5, targetTimer=0, progress=0.3, difficulty=nil }
 local minigameConn = nil
 
 -- ── Helpers ───────────────────────────────────────────────────
@@ -71,12 +74,12 @@ local function startMinigame(rarity, fishSpeedMult, barBonus)
 		fillRate   = base.fillRate,
 	}
 	mg.difficulty  = diff
-	mg.barY        = 0.34
-	mg.fishY       = math.random() * 0.6 + 0.2
+	mg.barY        = 0.33
+	mg.fishY       = math.random() * 0.5 + 0.25   -- start mid-screen
 	mg.fishVel     = 0
-	mg.fishTarget  = math.random() * 0.8 + 0.1
+	mg.fishTarget  = math.random() * 0.6 + 0.2    -- first target also mid-ish
 	mg.targetTimer = 0
-	mg.progress    = 0.5
+	mg.progress    = 0.3   -- start at 30%, never 0 (prevents instant loss)
 	minigameActive = true
 
 	local gui = getGui()
@@ -203,14 +206,16 @@ end)
 
 Remotes.FishCaught.OnClientEvent:Connect(function(info)
 	isFishing = false; isBiting = false
-	setStatus(string.format("Caught a %s %s (%d cm)! 🎉", info.rarity, info.name, info.size))
+	local coinStr = info.coins and (" +🪙"..info.coins) or ""
+	setStatus(string.format("Caught a %s %s (%d cm)!%s 🎉", info.rarity, info.name, info.size, coinStr))
 	local gui = getGui()
 	if gui then
 		local popup = gui:FindFirstChild("CatchPopup")
 		if popup then
 			local n = popup:FindFirstChild("FishNameLabel");   if n then n.Text = info.name end
 			local r = popup:FindFirstChild("FishRarityLabel"); if r then r.Text = info.rarity end
-			local s = popup:FindFirstChild("FishSizeLabel");   if s then s.Text = info.size.." cm" end
+			local s = popup:FindFirstChild("FishSizeLabel")
+			if s then s.Text = info.size.." cm" .. (info.coins and ("  +🪙"..info.coins) or "") end
 			popup.Visible = true
 			task.delay(4, function() if popup then popup.Visible = false end end)
 		end
