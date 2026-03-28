@@ -28,34 +28,17 @@ local playerState = {}
 -- }
 
 -- -------------------------------------------------------
--- Utility: Check whether a position is on or near any water.
--- Accepts: Terrain water, parts with Water material, or any
--- part/model whose name contains "water" (case-insensitive).
+-- Utility: Check whether a position is within 25 studs of
+-- any water part (by material or name) or Terrain water.
 -- -------------------------------------------------------
 local function isNearWater(position)
-    -- Check Terrain water at the position
-    local cellPos = workspace.Terrain:WorldToCell(position)
-    local material = workspace.Terrain:GetCell(cellPos.X, cellPos.Y, cellPos.Z)
-    if material == Enum.CellMaterial.Water then
-        return true
-    end
-
-    -- Check all BaseParts in the workspace
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("BasePart") then
             local nameMatch = obj.Name:lower():find("water") ~= nil
                 or (obj.Parent and obj.Parent.Name:lower():find("water") ~= nil)
             local materialMatch = obj.Material == Enum.Material.Water
-
-            if nameMatch or materialMatch then
-                -- AABB proximity check with a generous tolerance
-                local halfSize = obj.Size / 2 + Vector3.new(4, 6, 4)
-                local localPos = obj.CFrame:PointToObjectSpace(position)
-                if math.abs(localPos.X) <= halfSize.X
-                and math.abs(localPos.Y) <= halfSize.Y
-                and math.abs(localPos.Z) <= halfSize.Z then
-                    return true
-                end
+            if (nameMatch or materialMatch) and (obj.Position - position).Magnitude < 25 then
+                return true
             end
         end
     end

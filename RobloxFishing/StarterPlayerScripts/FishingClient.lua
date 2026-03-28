@@ -25,57 +25,59 @@ local isFishing  = false   -- true while line is in the water
 local isBiting   = false   -- true during the reel-in window
 
 -- -------------------------------------------------------
--- Helper: Returns true if a raycast result counts as water.
--- Detects: Roblox Terrain water, parts with Water material,
--- and any part/model whose name contains "water" (case-insensitive).
+-- Helper: Returns true if a part counts as water.
 -- -------------------------------------------------------
-local function isWaterHit(result)
-    if not result then return false end
-
-    -- Terrain water or any hit with Water material
-    if result.Material == Enum.Material.Water then return true end
-
-    local hit = result.Instance
-    if not hit then return false end
-
-    -- Part whose material is Water
-    if hit:IsA("BasePart") and hit.Material == Enum.Material.Water then
-        return true
-    end
-
-    -- Name contains "water" anywhere (covers "Water", "WaterPart", "ocean_water", etc.)
-    local function hasWater(name)
-        return name:lower():find("water") ~= nil
-    end
-
-    if hasWater(hit.Name) then return true end
-    if hit.Parent and hasWater(hit.Parent.Name) then return true end
-
+local function isWaterPart(part)
+    if not part or not part:IsA("BasePart") then return false end
+    if part.Material == Enum.Material.Water then return true end
+    local function hasWater(name) return name:lower():find("water") ~= nil end
+    if hasWater(part.Name) then return true end
+    if part.Parent and hasWater(part.Parent.Name) then return true end
     return false
 end
 
 -- -------------------------------------------------------
--- Helper: Raycast into the scene and return the water hit position.
--- Returns (position, true) if water was found, (nil, false) otherwise.
+-- Helper: Check if the player's character is touching or
+-- inside any water part. Returns (bobberPosition, true) if
+-- near water, (nil, false) otherwise.
+-- Works whether the player is standing IN water, beside it,
+-- or looking at it from any angle.
 -- -------------------------------------------------------
 local function getWaterTarget()
-    local screenCenter = Vector2.new(
-        camera.ViewportSize.X / 2,
-        camera.ViewportSize.Y / 2
-    )
-    local unitRay = camera:ScreenPointToRay(screenCenter.X, screenCenter.Y)
-
-    -- Exclude the local player's character from the raycast
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
     local character = localPlayer.Character
-    if character then
-        raycastParams.FilterDescendantsInstances = {character}
+    local rootPart  = character and character:FindFirstChild("HumanoidRootPart")
+    if not rootPart then return nil, false end
+
+    local rootPos = rootPart.Position
+
+    -- 1. Check parts the character is currently touching
+    for _, part in ipairs(rootPart:GetTouchingParts()) do
+        if isWaterPart(part) then
+            -- Place bobber at the player's feet on the water surface
+            local bobberPos = Vector3.new(rootPos.X, part.Position.Y + part.Size.Y / 2 + 0.3, rootPos.Z)
+            return bobberPos, true
+        end
     end
 
-    local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 60, raycastParams)
+    -- 2. Proximity check: find any water part within 20 studs
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if isWaterPart(obj) then
+            local dist = (obj.Position - rootPos).Magnitude
+            if dist < 20 then
+                local bobberPos = Vector3.new(rootPos.X, obj.Position.Y + obj.Size.Y / 2 + 0.3, rootPos.Z)
+                return bobberPos, true
+            end
+        end
+    end
 
-    if isWaterHit(result) then
+    -- 3. Fallback: raycast from camera (handles looking at water from outside)
+    local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+    local unitRay = camera:ScreenPointToRay(screenCenter.X, screenCenter.Y)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    if character then raycastParams.FilterDescendantsInstances = {character} end
+    local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 60, raycastParams)
+    if result and (result.Material == Enum.Material.Water or isWaterPart(result.Instance)) then
         return result.Position, true
     end
 
