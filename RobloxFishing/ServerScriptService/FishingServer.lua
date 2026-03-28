@@ -144,7 +144,7 @@ local function addPromptToWaterPart(part)
     prompt.ObjectText           = "Water"
     prompt.KeyboardKeyCode      = Enum.KeyCode.E
     prompt.HoldDuration         = 0
-    prompt.MaxActivationDistance = 10
+    prompt.MaxActivationDistance = 20
     prompt.Parent               = part
 
     prompt.Triggered:Connect(function(player)
@@ -163,12 +163,12 @@ local function setupWaterPrompts()
 end
 
 workspace.DescendantAdded:Connect(function(obj)
-    task.wait() -- let part finish initializing
     addPromptToWaterPart(obj)
 end)
 
--- Delay slightly so the workspace is fully loaded
-task.delay(1, setupWaterPrompts)
+-- Run immediately and again after a delay to catch all parts
+setupWaterPrompts()
+task.delay(3, setupWaterPrompts)
 
 -- -------------------------------------------------------
 -- Handle: Player clicks to reel in (fired by client)
