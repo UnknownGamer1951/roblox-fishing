@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rojo --version)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(where rojo:*)",
+      "Bash(aftman --version)",
+      "Bash(cargo --version)",
+      "Bash(foreman --version)",
+      "Bash(powershell.exe -Command \"Invoke-WebRequest -Uri 'https://github.com/LPGhatguy/aftman/releases/latest/download/aftman-windows-x86_64.zip' -OutFile '$env:TEMP\\\\aftman.zip'; Expand-Archive -Path '$env:TEMP\\\\aftman.zip' -DestinationPath '$env:TEMP\\\\aftman' -Force; Write-Host 'Downloaded OK'\" 2>&1)",
+      "Bash(powershell.exe -Command \"\n\\\\$url = 'https://api.github.com/repos/rojo-rbx/rojo/releases/latest'\n\\\\$release = Invoke-RestMethod -Uri \\\\$url\n\\\\$asset = \\\\$release.assets | Where-Object { \\\\$_.name -like '*windows*' -and \\\\$_.name -like '*.zip' }\nWrite-Host \\\\$asset.name\nWrite-Host \\\\$asset.browser_download_url\n\" 2>&1)",
+      "Bash(powershell.exe -Command \"\n\\\\$url = 'https://github.com/rojo-rbx/rojo/releases/download/v7.6.1/rojo-7.6.1-windows-x86_64.zip'\n\\\\$dest = 'C:\\\\\\\\Users\\\\\\\\jacob\\\\\\\\.local\\\\\\\\bin'\nNew-Item -ItemType Directory -Force -Path \\\\$dest | Out-Null\nInvoke-WebRequest -Uri \\\\$url -OutFile 'C:\\\\\\\\Users\\\\\\\\jacob\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\rojo.zip'\nExpand-Archive -Path 'C:\\\\\\\\Users\\\\\\\\jacob\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Temp\\\\\\\\rojo.zip' -DestinationPath \\\\$dest -Force\nWrite-Host 'Rojo installed to' \\\\$dest\nGet-ChildItem \\\\$dest\n\" 2>&1)",
+      "Read(//c/Users/jacob/.local/bin//**)",
+      "Bash(/c/Users/jacob/.local/bin/rojo.exe --version)",
+      "Bash(echo $PATH)",
+      "Bash(rojo.exe --version)",
+      "Bash(timeout 5 rojo.exe serve)",
+      "Bash(powershell.exe -Command \"Get-NetTCPConnection -LocalPort 34872 -ErrorAction SilentlyContinue | Select-Object OwningProcess | ForEach-Object { \\\\$proc = Get-Process -Id \\\\$_.OwningProcess -ErrorAction SilentlyContinue; Write-Host \\\\$proc.Name \\\\$proc.Id }\" 2>&1)",
+      "Bash(powershell.exe -Command \"Stop-Process -Id 13520 -Force; Write-Host 'Killed rojo PID 13520'\" 2>&1)",
+      "Bash(git pull:*)"
+    ]
+  }
+}

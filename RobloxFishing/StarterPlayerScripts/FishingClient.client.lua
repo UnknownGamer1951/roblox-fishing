@@ -1,170 +1,289 @@
 -- ============================================================
--- FishingClient.lua
--- Location in Studio: StarterPlayer > StarterPlayerScripts > FishingClient (LocalScript)
---
--- Handles UI updates and reel-in input.
--- Fishing is now started by walking up to water and pressing E
--- (via a ProximityPrompt added automatically by FishingServer).
+-- FishingClient.lua  (LocalScript in StarterPlayerScripts)
+-- Stardew-style minigame + AC tourney countdown
+-- Hold LEFT CLICK to lift the catch bar
 -- ============================================================
 
 local Players           = game:GetService("Players")
 local UserInputService  = game:GetService("UserInputService")
+local RunService        = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Remotes     = require(ReplicatedStorage:WaitForChild("FishingRemotes"))
 local localPlayer = Players.LocalPlayer
 
--- -------------------------------------------------------
--- State
--- -------------------------------------------------------
-local isFishing = false
-local isBiting  = false
+-- ── State ─────────────────────────────────────────────────────
+local isFishing      = false
+local isBiting       = false
+local minigameActive = false
+local isHoldingBar   = false
 
--- -------------------------------------------------------
--- Helper: get the FishingGui safely
--- -------------------------------------------------------
+-- ── Base difficulty per rarity (modified by server upgrade params) ──
+-- drainRate < fillRate so players can win; Legendary is tough but fair.
+local DIFFICULTY = {
+	Common    = { barHeight=0.34, fishAccel=3.0,  fishDamping=4.5, drainRate=0.09, fillRate=0.24 },
+	Uncommon  = { barHeight=0.28, fishAccel=4.5,  fishDamping=4.5, drainRate=0.13, fillRate=0.21 },
+	Rare      = { barHeight=0.22, fishAccel=6.0,  fishDamping=5.0, drainRate=0.17, fillRate=0.18 },
+	Legendary = { barHeight=0.16, fishAccel=8.5,  fishDamping=5.5, drainRate=0.22, fillRate=0.16 },
+}
+
+-- Progress starts at 0.3 — never at exactly 0 so the game can't
+-- instantly end on the first frame before the player has control.
+local mg = { barY=0.33, fishY=0.5, fishVel=0, fishTarget=0.5, targetTimer=0, progress=0.3, difficulty=nil }
+local minigameConn = nil
+
+-- ── Helpers ───────────────────────────────────────────────────
 local function getGui()
-    return localPlayer.PlayerGui:FindFirstChild("FishingGui")
+	return localPlayer.PlayerGui:FindFirstChild("FishingGui")
 end
 
 local function setStatus(text)
-    local gui = getGui()
-    if gui then
-        -- StatusLabel is nested inside StatusFrame, use recursive search
-        local label = gui:FindFirstChild("StatusLabel", true)
-        if label then label.Text = text end
-    end
+	local gui = getGui()
+	if not gui then return end
+	local label = gui:FindFirstChild("StatusLabel", true)
+	if label then label.Text = text end
 end
 
--- -------------------------------------------------------
--- Click / tap to reel in while a fish is biting
--- -------------------------------------------------------
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
+-- ── End minigame ──────────────────────────────────────────────
+local function endMinigame(win)
+	if not minigameActive then return end
+	minigameActive = false
+	isHoldingBar   = false
+	if minigameConn then minigameConn:Disconnect(); minigameConn = nil end
+	local gui = getGui()
+	if gui then
+		local p = gui:FindFirstChild("MinigamePanel")
+		if p then p.Visible = false end
+	end
+	isFishing = false
+	isBiting  = false
+	if win then Remotes.MinigameWon:FireServer()
+	else        Remotes.MinigameLost:FireServer() end
+end
 
-    local isClick = input.UserInputType == Enum.UserInputType.MouseButton1
-                 or input.UserInputType == Enum.UserInputType.Touch
+-- ── Start minigame ────────────────────────────────────────────
+-- fishSpeedMult: from Hook upgrade (1.0 = normal, 0.4 = very slow)
+-- barBonus:      from Rod upgrade  (0.0 = no bonus, 0.18 = +18% height)
+local function startMinigame(rarity, fishSpeedMult, barBonus)
+	local base = DIFFICULTY[rarity] or DIFFICULTY.Common
+	local diff = {
+		barHeight  = math.clamp(base.barHeight + (barBonus or 0), 0.10, 0.60),
+		fishAccel  = base.fishAccel  * (fishSpeedMult or 1),
+		fishDamping= base.fishDamping * (fishSpeedMult or 1),
+		drainRate  = base.drainRate,
+		fillRate   = base.fillRate,
+	}
+	mg.difficulty  = diff
+	mg.barY        = 0.33
+	mg.fishY       = math.random() * 0.5 + 0.25   -- start mid-screen
+	mg.fishVel     = 0
+	mg.fishTarget  = math.random() * 0.6 + 0.2    -- first target also mid-ish
+	mg.targetTimer = 0
+	mg.progress    = 0.3   -- start at 30%, never 0 (prevents instant loss)
+	minigameActive = true
 
-    if not isClick then return end
+	local gui = getGui()
+	if not gui then return end
+	local panel = gui:FindFirstChild("MinigamePanel")
+	if not panel then return end
 
-    if isBiting then
-        -- Reel in during the bite window
-        isBiting  = false
-        isFishing = false
-        Remotes.ReelIn:FireServer()
+	local container = panel:FindFirstChild("Container")
+	if container then
+		local bar = container:FindFirstChild("CatchBar")
+		if bar then bar.Size = UDim2.new(0.9, 0, diff.barHeight, 0) end
+		local holdArea = container:FindFirstChild("HoldArea")
+		if holdArea then
+			holdArea.InputBegan:Connect(function(inp)
+				if inp.UserInputType == Enum.UserInputType.MouseButton1
+				or inp.UserInputType == Enum.UserInputType.Touch then
+					isHoldingBar = true
+				end
+			end)
+			holdArea.InputEnded:Connect(function(inp)
+				if inp.UserInputType == Enum.UserInputType.MouseButton1
+				or inp.UserInputType == Enum.UserInputType.Touch then
+					isHoldingBar = false
+				end
+			end)
+		end
+	end
+	panel.Visible = true
 
-    elseif isFishing then
-        -- Cancel early
-        isFishing = false
-        Remotes.ReelIn:FireServer()
-        setStatus("Cancelled. Walk up to water and press E to fish.")
-        task.delay(2, function()
-            if not isFishing then
-                setStatus("Walk up to water and press [E] to fish.")
-            end
-        end)
-    end
+	if minigameConn then minigameConn:Disconnect() end
+	minigameConn = RunService.Heartbeat:Connect(function(dt)
+		if not minigameActive then return end
+		local d = mg.difficulty
+
+		-- Fish picks new target every 0.6–2 s
+		mg.targetTimer -= dt
+		if mg.targetTimer <= 0 then
+			mg.fishTarget  = math.random() * 0.80 + 0.10
+			mg.targetTimer = math.random() * 1.4  + 0.6
+		end
+
+		-- Spring physics toward target
+		local err  = mg.fishTarget - mg.fishY
+		mg.fishVel = mg.fishVel + err * d.fishAccel * dt * 10
+		mg.fishVel = mg.fishVel * (1 - d.fishDamping * dt)
+		mg.fishY   = math.clamp(mg.fishY + mg.fishVel * dt, 0.02, 0.97)
+
+		-- Catch bar: hold click = float up, release = fall
+		if isHoldingBar then
+			mg.barY = math.clamp(mg.barY - 0.65 * dt, 0, 1 - d.barHeight)
+		else
+			mg.barY = math.clamp(mg.barY + 0.85 * dt, 0, 1 - d.barHeight)
+		end
+
+		local inside = mg.fishY >= mg.barY and mg.fishY <= mg.barY + d.barHeight
+		if inside then
+			mg.progress = math.clamp(mg.progress + d.fillRate  * dt, 0, 1)
+		else
+			mg.progress = math.clamp(mg.progress - d.drainRate * dt, 0, 1)
+		end
+
+		-- Update UI
+		local gui2   = getGui()
+		if not gui2 then return end
+		local panel2 = gui2:FindFirstChild("MinigamePanel")
+		if not panel2 then return end
+
+		local cont = panel2:FindFirstChild("Container")
+		if cont then
+			local bar2 = cont:FindFirstChild("CatchBar")
+			if bar2 then
+				bar2.Position         = UDim2.new(0.05, 0, mg.barY, 0)
+				bar2.Size             = UDim2.new(0.9,  0, d.barHeight, 0)
+				bar2.BackgroundColor3 = inside and Color3.fromRGB(60,210,80) or Color3.fromRGB(255,150,30)
+			end
+			local fishEl = cont:FindFirstChild("FishIcon")
+			if fishEl then fishEl.Position = UDim2.new(0.1, 0, mg.fishY - 0.035, 0) end
+		end
+		local pgBg = panel2:FindFirstChild("ProgressBg")
+		if pgBg then
+			local fill = pgBg:FindFirstChild("ProgressFill")
+			if fill then
+				fill.Size             = UDim2.new(1, 0, mg.progress, 0)
+				fill.Position         = UDim2.new(0, 0, 1 - mg.progress, 0)
+				fill.BackgroundColor3 = inside and Color3.fromRGB(60,210,80) or Color3.fromRGB(255,80,50)
+			end
+		end
+
+		if     mg.progress >= 1 then endMinigame(true)
+		elseif mg.progress <= 0 then endMinigame(false) end
+	end)
+end
+
+-- ── Input: HOLD LEFT CLICK to lift bar; Escape to quit ────────
+UserInputService.InputBegan:Connect(function(inp, gp)
+	-- MouseButton1 works even when a GUI element has focus
+	if inp.UserInputType == Enum.UserInputType.MouseButton1 and minigameActive then
+		isHoldingBar = true
+	end
+	if gp then return end
+	if inp.KeyCode == Enum.KeyCode.Escape and minigameActive then
+		endMinigame(false)
+	end
 end)
 
--- -------------------------------------------------------
--- Server -> Client: Bobber has landed (fishing has started)
--- -------------------------------------------------------
-Remotes.BobberLanded.OnClientEvent:Connect(function(position)
-    isFishing = true
-    isBiting  = false
-    setStatus("Line in water... wait for a bite!")
-    local gui = getGui()
-    if gui and gui:FindFirstChild("ActionButton") then
-        gui.ActionButton.Visible = false
-    end
-    print("[FishingClient] Bobber landed at", position)
+UserInputService.InputEnded:Connect(function(inp)
+	if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+		isHoldingBar = false
+	end
 end)
 
--- -------------------------------------------------------
--- Server -> Client: Fish is biting!
--- -------------------------------------------------------
-Remotes.FishBiting.OnClientEvent:Connect(function()
-    isBiting = true
-
-    local gui = getGui()
-    if gui then
-        setStatus("A fish is biting! CLICK NOW!")
-        local btn = gui:FindFirstChild("ActionButton")
-        if btn then
-            btn.Text    = "REEL IN!"
-            btn.Visible = true
-            task.spawn(function()
-                for _ = 1, 6 do
-                    btn.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-                    task.wait(0.15)
-                    btn.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
-                    task.wait(0.15)
-                end
-            end)
-        end
-    end
+-- ── Server → Client events ────────────────────────────────────
+Remotes.BobberLanded.OnClientEvent:Connect(function(pos)
+	isFishing = true; isBiting = false
+	setStatus("Line in water... wait for a bite!")
+	print("[FishingClient] Bobber landed at", pos)
 end)
 
--- -------------------------------------------------------
--- Server -> Client: Fish caught successfully
--- -------------------------------------------------------
-Remotes.FishCaught.OnClientEvent:Connect(function(fishInfo)
-    isFishing = false
-    isBiting  = false
-
-    local gui = getGui()
-    if gui then
-        setStatus(string.format("Caught a %s %s (%d cm)!", fishInfo.rarity, fishInfo.name, fishInfo.size))
-
-        local btn = gui:FindFirstChild("ActionButton")
-        if btn then
-            btn.Visible          = false
-            btn.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
-        end
-
-        local popup = gui:FindFirstChild("CatchPopup")
-        if popup then
-            popup.FishNameLabel.Text   = fishInfo.name
-            popup.FishRarityLabel.Text = fishInfo.rarity
-            popup.FishSizeLabel.Text   = fishInfo.size .. " cm"
-            popup.Visible = true
-            task.delay(4, function() if popup then popup.Visible = false end end)
-        end
-
-        task.delay(4, function()
-            if not isFishing then
-                setStatus("Walk up to water and press [E] to fish.")
-            end
-        end)
-    end
+Remotes.FishBiting.OnClientEvent:Connect(function(rarity, fishName, fishSpeedMult, barBonus)
+	isBiting = true
+	setStatus((fishName or "A fish") .. " is on the line! 🎣")
+	startMinigame(rarity or "Common", fishSpeedMult, barBonus)
 end)
 
--- -------------------------------------------------------
--- Server -> Client: Player missed the bite window
--- -------------------------------------------------------
+Remotes.FishCaught.OnClientEvent:Connect(function(info)
+	isFishing = false; isBiting = false
+	local coinStr = info.coins and (" +🪙"..info.coins) or ""
+	setStatus(string.format("Caught a %s %s (%d cm)!%s 🎉", info.rarity, info.name, info.size, coinStr))
+	local gui = getGui()
+	if gui then
+		local popup = gui:FindFirstChild("CatchPopup")
+		if popup then
+			local n = popup:FindFirstChild("FishNameLabel");   if n then n.Text = info.name end
+			local r = popup:FindFirstChild("FishRarityLabel"); if r then r.Text = info.rarity end
+			local s = popup:FindFirstChild("FishSizeLabel")
+			if s then s.Text = info.size.." cm" .. (info.coins and ("  +🪙"..info.coins) or "") end
+			popup.Visible = true
+			task.delay(4, function() if popup then popup.Visible = false end end)
+		end
+	end
+	task.delay(4, function()
+		if not isFishing then setStatus("Walk up to water and press [E] to fish.") end
+	end)
+end)
+
 Remotes.FishMissed.OnClientEvent:Connect(function()
-    isFishing = false
-    isBiting  = false
-
-    local gui = getGui()
-    if gui then
-        setStatus("You missed it!")
-        local btn = gui:FindFirstChild("ActionButton")
-        if btn then
-            btn.Visible          = false
-            btn.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
-        end
-        task.delay(2, function()
-            if not isFishing then
-                setStatus("Walk up to water and press [E] to fish.")
-            end
-        end)
-    end
+	isFishing = false; isBiting = false
+	setStatus("The fish got away! 😔")
+	task.delay(2, function()
+		if not isFishing then setStatus("Walk up to water and press [E] to fish.") end
+	end)
 end)
 
--- Set initial status text
-task.delay(1, function()
-    setStatus("Walk up to water and press [E] to fish.")
+-- ── Tournament events ─────────────────────────────────────────
+Remotes.TournamentStart.OnClientEvent:Connect(function(duration)
+	local gui = getGui()
+	if not gui then return end
+	local hud = gui:FindFirstChild("TourneyHUD")
+	if not hud then return end
+	hud.Visible = true
+	local tlbl = hud:FindFirstChild("TimerLabel")
+	local flbl = hud:FindFirstChild("FishCountLabel")
+	if flbl then flbl.Text = "🐟 0 fish this run" end
+	local t = duration
+	while t > 0 and hud.Visible do
+		task.wait(1); t -= 1
+		if tlbl then
+			tlbl.Text       = string.format("⏱ %d:%02d", math.floor(t/60), t%60)
+			tlbl.TextColor3 = t <= 30 and Color3.fromRGB(255,80,80) or Color3.fromRGB(255,220,60)
+		end
+	end
 end)
 
+Remotes.TournamentPoints.OnClientEvent:Connect(function(fishRun, totalPts)
+	local gui = getGui()
+	if not gui then return end
+	local hud = gui:FindFirstChild("TourneyHUD")
+	if not hud then return end
+	local f = hud:FindFirstChild("FishCountLabel")
+	local p = hud:FindFirstChild("PointsLabel")
+	if f then f.Text = string.format("🐟 %d fish%s", fishRun, fishRun >= 3 and " ⭐ BONUS!" or "") end
+	if p then p.Text = string.format("⭐ %d pts total", totalPts) end
+end)
+
+Remotes.TournamentEnd.OnClientEvent:Connect(function(data)
+	local gui = getGui()
+	if not gui then return end
+	local hud = gui:FindFirstChild("TourneyHUD")
+	if hud then hud.Visible = false end
+	local res = gui:FindFirstChild("TourneyResult")
+	if not res then return end
+	local tl = res:FindFirstChild("TrophyLabel")
+	if tl then tl.Text = data.trophy ~= "none" and data.trophy or "Keep fishing for a trophy! 🎣" end
+	local fl = res:FindFirstChild("FishLabel")
+	if fl then fl.Text = string.format("Caught %d fish this round", data.fishCaught) end
+	local bl = res:FindFirstChild("BonusLabel")
+	if bl then
+		bl.Text       = data.bonus and "+2 Bonus for catching 3+ fish! 🎉" or "Catch 3+ next round for a bonus!"
+		bl.TextColor3 = data.bonus and Color3.fromRGB(255,210,60) or Color3.fromRGB(140,140,140)
+	end
+	local ttl = res:FindFirstChild("TotalLabel")
+	if ttl then ttl.Text = string.format("Total: %d points this session", data.totalPoints) end
+	res.Visible = true
+end)
+
+task.delay(1, function() setStatus("Walk up to water and press [E] to fish.") end)
 print("[FishingClient] Loaded!")

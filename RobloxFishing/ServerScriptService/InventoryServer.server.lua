@@ -1,10 +1,7 @@
 -- ============================================================
--- InventoryServer.lua
--- Location in Studio: ServerScriptService > InventoryServer (ModuleScript)
---
--- Stores each player's caught fish.
--- FishingServer.lua calls AddFish() when a catch succeeds.
--- The client can call GetInventory remote to read the list.
+-- InventoryServer.lua  (ModuleScript in ServerScriptService)
+-- In-memory fish inventory. FishingServer seeds it from
+-- PlayerData on join and updates it on every catch.
 -- ============================================================
 
 local Players           = game:GetService("Players")
@@ -12,58 +9,45 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Remotes           = require(ReplicatedStorage:WaitForChild("FishingRemotes"))
 
 local InventoryServer = {}
+local inventories     = {}  -- [player] = { {name,size,rarity,time}, ... }
 
--- inventories[player] = list of caught fish entries
-local inventories = {}
+-- Called by FishingServer.initPlayer to restore saved fish
+function InventoryServer.LoadInventory(player, fishList)
+	inventories[player] = {}
+	if fishList then
+		for _, entry in ipairs(fishList) do
+			table.insert(inventories[player], entry)
+		end
+	end
+	print(("[InventoryServer] Seeded %d fish for %s"):format(#inventories[player], player.Name))
+end
 
--- -------------------------------------------------------
--- AddFish(player, name, size, rarity)
--- Called by FishingServer when the player catches a fish.
--- -------------------------------------------------------
+-- Called on each successful catch
 function InventoryServer.AddFish(player, name, size, rarity)
-    local inv = inventories[player]
-    if not inv then return end
-
-    table.insert(inv, {
-        name   = name,
-        size   = size,        -- number in cm
-        rarity = rarity,
-        time   = os.time(),   -- Unix timestamp of the catch
-    })
-
-    print(("[InventoryServer] %s caught a %s (%s, %dcm)"):format(
-        player.Name, name, rarity, size
-    ))
+	local inv = inventories[player]
+	if not inv then return end
+	table.insert(inv, { name=name, size=size, rarity=rarity, time=os.time() })
+	print(("[InventoryServer] %s caught a %s (%s, %dcm)"):format(player.Name, name, rarity, size))
 end
 
--- -------------------------------------------------------
--- GetInventory(player) -> list of fish entries
--- -------------------------------------------------------
+-- Returns the full list for a player
 function InventoryServer.GetInventory(player)
-    return inventories[player] or {}
+	return inventories[player] or {}
 end
 
--- -------------------------------------------------------
--- Respond to client requests for inventory data
--- -------------------------------------------------------
+-- Client asks for inventory list
 Remotes.GetInventory.OnServerInvoke = function(player)
-    return InventoryServer.GetInventory(player)
+	return InventoryServer.GetInventory(player)
 end
 
--- -------------------------------------------------------
--- Initialize inventory when a player joins
--- -------------------------------------------------------
+-- Create empty table on join (FishingServer.initPlayer will seed it)
 Players.PlayerAdded:Connect(function(player)
-    inventories[player] = {}
+	inventories[player] = {}
 end)
 
--- -------------------------------------------------------
--- Clean up when a player leaves
--- -------------------------------------------------------
 Players.PlayerRemoving:Connect(function(player)
-    inventories[player] = nil
+	inventories[player] = nil
 end)
 
 print("[InventoryServer] Loaded and ready!")
-
 return InventoryServer
