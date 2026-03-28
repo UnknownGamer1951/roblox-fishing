@@ -5,8 +5,11 @@
 
 local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService        = game:GetService("RunService")
+local TweenService      = game:GetService("TweenService")
 local Remotes           = require(ReplicatedStorage:WaitForChild("FishingRemotes"))
 local UpgradeData       = require(ReplicatedStorage:WaitForChild("UpgradeData"))
+local AchievementData   = require(ReplicatedStorage:WaitForChild("AchievementData"))
 
 local localPlayer = Players.LocalPlayer
 local screenGui   = script.Parent
@@ -586,5 +589,426 @@ Remotes.CoinsUpdate.OnClientEvent:Connect(function(coins)
 	coinsLabel.Text     = "🪙 " .. coins
 	shopCoinsLabel.Text = "🪙 " .. coins .. " coins"
 end)
+
+-- ============================================================
+-- JOURNAL BUTTON (bottom-left, next to shop)
+-- ============================================================
+local journalButton = Instance.new("TextButton")
+journalButton.Name             = "JournalButton"
+journalButton.Size             = UDim2.new(0, 130, 0, 46)
+journalButton.Position         = UDim2.new(0, 298, 1, -68)
+journalButton.BackgroundColor3 = Color3.fromRGB(60, 40, 100)
+journalButton.BorderSizePixel  = 0
+journalButton.Text             = "📓 Journal"
+journalButton.TextColor3       = Color3.fromRGB(255, 255, 255)
+journalButton.TextScaled       = true
+journalButton.Font             = Enum.Font.GothamBold
+journalButton.Parent           = screenGui
+Instance.new("UICorner", journalButton).CornerRadius = UDim.new(0, 10)
+
+-- ============================================================
+-- JOURNAL PANEL
+-- ============================================================
+local journalPanel = Instance.new("Frame")
+journalPanel.Name                   = "JournalPanel"
+journalPanel.Size                   = UDim2.new(0, 460, 0, 530)
+journalPanel.Position               = UDim2.new(0, 18, 1, -612)
+journalPanel.BackgroundColor3       = Color3.fromRGB(14, 10, 28)
+journalPanel.BackgroundTransparency = 0.05
+journalPanel.BorderSizePixel        = 0
+journalPanel.Visible                = false
+journalPanel.Parent                 = screenGui
+Instance.new("UICorner", journalPanel).CornerRadius = UDim.new(0, 14)
+
+local journalTitle = Instance.new("TextLabel")
+journalTitle.Size               = UDim2.new(1, 0, 0, 46)
+journalTitle.Position           = UDim2.new(0, 0, 0, 0)
+journalTitle.BackgroundTransparency = 1
+journalTitle.Text               = "📓 Quest Journal"
+journalTitle.TextColor3         = Color3.fromRGB(200, 170, 255)
+journalTitle.TextScaled         = true
+journalTitle.Font               = Enum.Font.GothamBold
+journalTitle.Parent             = journalPanel
+
+-- ── Tab buttons ───────────────────────────────────────────────
+local tabAchBtn = Instance.new("TextButton")
+tabAchBtn.Name             = "TabAch"
+tabAchBtn.Size             = UDim2.new(0.5, -10, 0, 36)
+tabAchBtn.Position         = UDim2.new(0, 8, 0, 48)
+tabAchBtn.BackgroundColor3 = Color3.fromRGB(80, 50, 140)
+tabAchBtn.BorderSizePixel  = 0
+tabAchBtn.Text             = "🏆 Achievements"
+tabAchBtn.TextColor3       = Color3.fromRGB(255, 255, 255)
+tabAchBtn.TextScaled       = true
+tabAchBtn.Font             = Enum.Font.GothamBold
+tabAchBtn.Parent           = journalPanel
+Instance.new("UICorner", tabAchBtn).CornerRadius = UDim.new(0, 8)
+
+local tabGuideBtn = Instance.new("TextButton")
+tabGuideBtn.Name             = "TabGuide"
+tabGuideBtn.Size             = UDim2.new(0.5, -10, 0, 36)
+tabGuideBtn.Position         = UDim2.new(0.5, 2, 0, 48)
+tabGuideBtn.BackgroundColor3 = Color3.fromRGB(40, 30, 60)
+tabGuideBtn.BorderSizePixel  = 0
+tabGuideBtn.Text             = "📖 Guide"
+tabGuideBtn.TextColor3       = Color3.fromRGB(200, 200, 200)
+tabGuideBtn.TextScaled       = true
+tabGuideBtn.Font             = Enum.Font.Gotham
+tabGuideBtn.Parent           = journalPanel
+Instance.new("UICorner", tabGuideBtn).CornerRadius = UDim.new(0, 8)
+
+-- ── Achievements tab (scrolling) ──────────────────────────────
+local achFrame = Instance.new("ScrollingFrame")
+achFrame.Name                = "AchFrame"
+achFrame.Size                = UDim2.new(1, -16, 1, -92)
+achFrame.Position            = UDim2.new(0, 8, 0, 90)
+achFrame.BackgroundTransparency = 1
+achFrame.BorderSizePixel     = 0
+achFrame.CanvasSize          = UDim2.new(0, 0, 0, 0)
+achFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+achFrame.ScrollBarThickness  = 6
+achFrame.Visible             = true
+achFrame.Parent              = journalPanel
+
+Instance.new("UIListLayout", achFrame).Padding   = UDim.new(0, 6)
+
+-- ── Guide tab (scrolling) ─────────────────────────────────────
+local guideFrame = Instance.new("ScrollingFrame")
+guideFrame.Name                = "GuideFrame"
+guideFrame.Size                = UDim2.new(1, -16, 1, -92)
+guideFrame.Position            = UDim2.new(0, 8, 0, 90)
+guideFrame.BackgroundTransparency = 1
+guideFrame.BorderSizePixel     = 0
+guideFrame.CanvasSize          = UDim2.new(0, 0, 0, 0)
+guideFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+guideFrame.ScrollBarThickness  = 6
+guideFrame.Visible             = false
+guideFrame.Parent              = journalPanel
+
+local guideLayout = Instance.new("UIListLayout")
+guideLayout.Padding   = UDim.new(0, 6)
+guideLayout.SortOrder = Enum.SortOrder.LayoutOrder
+guideLayout.Parent    = guideFrame
+
+local GUIDE_SECTIONS = {
+	{ title = "🎣  How to Fish",
+	  body  = "Walk up to any water and press [E] to cast your line. Wait for the bobber to bite, then the minigame starts automatically!" },
+	{ title = "🎮  Minigame Controls",
+	  body  = "Hold [LEFT CLICK] to lift the catch bar up. Release to let it fall. Keep the fish icon (🐟) inside the green bar. Fill the progress meter on the right to win!" },
+	{ title = "🪱🪝🎣  Upgrades",
+	  body  = "Visit the 🏪 Shop NPC near the water (or press the Shop button). Bait = better rarity luck. Hook = slower fish movement in minigame. Rod = bigger green catch bar." },
+	{ title = "🏆  Tournament",
+	  body  = "Press TOURNEY to start a 3-minute fishing sprint! Catch 3+ fish in one run for a +2 bonus. Earn trophies: 🥉 5 pts total, 🥈 15 pts, 🥇 30 pts." },
+	{ title = "🪙  Coins & Rewards",
+	  body  = "Every fish earns coins — Common: 5, Uncommon: 15, Rare: 50, Legendary: 150. Spend coins on upgrades in the shop." },
+	{ title = "📖  Achievements",
+	  body  = "Unlock achievements by catching fish, landing rare catches, upgrading gear, and winning tournaments. Check the Achievements tab above for your progress!" },
+}
+
+for i, sec in ipairs(GUIDE_SECTIONS) do
+	local titleLbl = Instance.new("TextLabel")
+	titleLbl.Size               = UDim2.new(1, -8, 0, 28)
+	titleLbl.BackgroundTransparency = 1
+	titleLbl.Text               = sec.title
+	titleLbl.TextColor3         = Color3.fromRGB(200, 170, 255)
+	titleLbl.TextScaled         = true
+	titleLbl.Font               = Enum.Font.GothamBold
+	titleLbl.TextXAlignment     = Enum.TextXAlignment.Left
+	titleLbl.LayoutOrder        = i * 2 - 1
+	titleLbl.Parent             = guideFrame
+
+	local bodyLbl = Instance.new("TextLabel")
+	bodyLbl.Size                = UDim2.new(1, -8, 0, 56)
+	bodyLbl.BackgroundColor3    = Color3.fromRGB(30, 20, 50)
+	bodyLbl.BackgroundTransparency = 0.35
+	bodyLbl.Text                = sec.body
+	bodyLbl.TextColor3          = Color3.fromRGB(210, 210, 220)
+	bodyLbl.TextWrapped         = true
+	bodyLbl.TextScaled          = false
+	bodyLbl.TextSize            = 13
+	bodyLbl.Font                = Enum.Font.Gotham
+	bodyLbl.TextXAlignment      = Enum.TextXAlignment.Left
+	bodyLbl.TextYAlignment      = Enum.TextYAlignment.Top
+	bodyLbl.LayoutOrder         = i * 2
+	bodyLbl.Parent              = guideFrame
+	Instance.new("UICorner", bodyLbl).CornerRadius = UDim.new(0, 6)
+	local pad = Instance.new("UIPadding", bodyLbl)
+	pad.PaddingLeft   = UDim.new(0, 6)
+	pad.PaddingTop    = UDim.new(0, 4)
+	pad.PaddingRight  = UDim.new(0, 6)
+	pad.PaddingBottom = UDim.new(0, 4)
+end
+
+-- ── Tab switching ─────────────────────────────────────────────
+local function setTab(showAch)
+	achFrame.Visible   = showAch
+	guideFrame.Visible = not showAch
+	if showAch then
+		tabAchBtn.BackgroundColor3   = Color3.fromRGB(80, 50, 140)
+		tabAchBtn.TextColor3         = Color3.fromRGB(255, 255, 255)
+		tabAchBtn.Font               = Enum.Font.GothamBold
+		tabGuideBtn.BackgroundColor3 = Color3.fromRGB(40, 30, 60)
+		tabGuideBtn.TextColor3       = Color3.fromRGB(200, 200, 200)
+		tabGuideBtn.Font             = Enum.Font.Gotham
+	else
+		tabAchBtn.BackgroundColor3   = Color3.fromRGB(40, 30, 60)
+		tabAchBtn.TextColor3         = Color3.fromRGB(200, 200, 200)
+		tabAchBtn.Font               = Enum.Font.Gotham
+		tabGuideBtn.BackgroundColor3 = Color3.fromRGB(80, 50, 140)
+		tabGuideBtn.TextColor3       = Color3.fromRGB(255, 255, 255)
+		tabGuideBtn.Font             = Enum.Font.GothamBold
+	end
+end
+
+tabAchBtn.Activated:Connect(function()  setTab(true)  end)
+tabGuideBtn.Activated:Connect(function() setTab(false) end)
+
+-- ── Rebuild achievement cards ─────────────────────────────────
+local function refreshAchievements()
+	for _, c in ipairs(achFrame:GetChildren()) do
+		if c:IsA("Frame") then c:Destroy() end
+	end
+
+	local stats, completed = Remotes.GetAchievements:InvokeServer()
+	stats     = stats     or {}
+	completed = completed or {}
+
+	local doneCount = 0
+	for _, ach in ipairs(AchievementData) do
+		if completed[ach.id] then doneCount += 1 end
+	end
+
+	-- Summary row at top
+	local summaryLbl = Instance.new("TextLabel")
+	summaryLbl.Size               = UDim2.new(1, -4, 0, 28)
+	summaryLbl.BackgroundTransparency = 1
+	summaryLbl.Text               = ("✅ %d / %d achievements unlocked"):format(doneCount, #AchievementData)
+	summaryLbl.TextColor3         = Color3.fromRGB(180, 255, 180)
+	summaryLbl.TextScaled         = true
+	summaryLbl.Font               = Enum.Font.Gotham
+	summaryLbl.LayoutOrder        = 0
+	summaryLbl.Parent             = achFrame
+
+	for i, ach in ipairs(AchievementData) do
+		local isDone   = completed[ach.id] == true
+		local progress = math.min(stats[ach.statKey] or 0, ach.goal)
+		local pct      = progress / ach.goal
+
+		local card = Instance.new("Frame")
+		card.Name             = "Ach_" .. ach.id
+		card.Size             = UDim2.new(1, -4, 0, 72)
+		card.BackgroundColor3 = isDone
+			and Color3.fromRGB(15, 45, 15)
+			or  Color3.fromRGB(24, 14, 44)
+		card.BackgroundTransparency = 0.2
+		card.BorderSizePixel  = 0
+		card.LayoutOrder      = isDone and (1000 + i) or i
+		card.Parent           = achFrame
+		Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
+
+		-- Icon
+		local iconLbl = Instance.new("TextLabel")
+		iconLbl.Size               = UDim2.new(0, 46, 0, 46)
+		iconLbl.Position           = UDim2.new(0, 4, 0.5, -23)
+		iconLbl.BackgroundTransparency = 1
+		iconLbl.Text               = ach.icon
+		iconLbl.TextScaled         = true
+		iconLbl.Font               = Enum.Font.Gotham
+		iconLbl.Parent             = card
+
+		-- Name
+		local nameLbl = Instance.new("TextLabel")
+		nameLbl.Size               = UDim2.new(1, -110, 0, 22)
+		nameLbl.Position           = UDim2.new(0, 54, 0, 7)
+		nameLbl.BackgroundTransparency = 1
+		nameLbl.Text               = (isDone and "✅ " or "") .. ach.name
+		nameLbl.TextColor3         = isDone
+			and Color3.fromRGB(100, 255, 100)
+			or  Color3.fromRGB(255, 255, 255)
+		nameLbl.TextScaled         = true
+		nameLbl.Font               = Enum.Font.GothamBold
+		nameLbl.TextXAlignment     = Enum.TextXAlignment.Left
+		nameLbl.Parent             = card
+
+		-- Desc
+		local descLbl = Instance.new("TextLabel")
+		descLbl.Size               = UDim2.new(1, -110, 0, 18)
+		descLbl.Position           = UDim2.new(0, 54, 0, 29)
+		descLbl.BackgroundTransparency = 1
+		descLbl.Text               = ach.desc
+		descLbl.TextColor3         = Color3.fromRGB(160, 160, 175)
+		descLbl.TextScaled         = true
+		descLbl.Font               = Enum.Font.Gotham
+		descLbl.TextXAlignment     = Enum.TextXAlignment.Left
+		descLbl.Parent             = card
+
+		-- Progress bar bg
+		local pbarBg = Instance.new("Frame")
+		pbarBg.Size               = UDim2.new(1, -60, 0, 10)
+		pbarBg.Position           = UDim2.new(0, 54, 0, 52)
+		pbarBg.BackgroundColor3   = Color3.fromRGB(45, 45, 58)
+		pbarBg.BorderSizePixel    = 0
+		pbarBg.Parent             = card
+		Instance.new("UICorner", pbarBg).CornerRadius = UDim.new(0, 4)
+
+		local pbarFill = Instance.new("Frame")
+		pbarFill.Size             = UDim2.new(pct, 0, 1, 0)
+		pbarFill.BackgroundColor3 = isDone
+			and Color3.fromRGB(60, 210, 80)
+			or  Color3.fromRGB(100, 140, 255)
+		pbarFill.BorderSizePixel  = 0
+		pbarFill.Parent           = pbarBg
+		Instance.new("UICorner", pbarFill).CornerRadius = UDim.new(0, 4)
+
+		-- Progress text (top-right of card)
+		local pctLbl = Instance.new("TextLabel")
+		pctLbl.Size               = UDim2.new(0, 52, 0, 20)
+		pctLbl.Position           = UDim2.new(1, -54, 0, 7)
+		pctLbl.BackgroundTransparency = 1
+		pctLbl.Text               = isDone and "DONE" or (progress .. "/" .. ach.goal)
+		pctLbl.TextColor3         = isDone
+			and Color3.fromRGB(100, 255, 100)
+			or  Color3.fromRGB(180, 180, 200)
+		pctLbl.TextScaled         = true
+		pctLbl.Font               = Enum.Font.Gotham
+		pctLbl.TextXAlignment     = Enum.TextXAlignment.Right
+		pctLbl.Parent             = card
+	end
+end
+
+-- Open / close journal
+journalButton.Activated:Connect(function()
+	invPanel.Visible     = false
+	shopPanel.Visible    = false
+	journalPanel.Visible = not journalPanel.Visible
+	if journalPanel.Visible then refreshAchievements() end
+end)
+
+-- ============================================================
+-- ACHIEVEMENT UNLOCKED TOAST (slides in from top)
+-- ============================================================
+local achToast = Instance.new("Frame")
+achToast.Name                   = "AchToast"
+achToast.Size                   = UDim2.new(0, 330, 0, 72)
+achToast.Position               = UDim2.new(0.5, -165, 0, -90)
+achToast.BackgroundColor3       = Color3.fromRGB(18, 52, 18)
+achToast.BackgroundTransparency = 0.08
+achToast.BorderSizePixel        = 0
+achToast.Visible                = false
+achToast.ZIndex                 = 20
+achToast.Parent                 = screenGui
+Instance.new("UICorner", achToast).CornerRadius = UDim.new(0, 12)
+
+-- Subtle green left-border strip
+local toastStrip = Instance.new("Frame")
+toastStrip.Size             = UDim2.new(0, 5, 1, 0)
+toastStrip.BackgroundColor3 = Color3.fromRGB(60, 220, 80)
+toastStrip.BorderSizePixel  = 0
+toastStrip.ZIndex           = 21
+toastStrip.Parent           = achToast
+Instance.new("UICorner", toastStrip).CornerRadius = UDim.new(0, 4)
+
+local toastHeader = Instance.new("TextLabel")
+toastHeader.Size               = UDim2.new(1, -70, 0, 22)
+toastHeader.Position           = UDim2.new(0, 60, 0, 8)
+toastHeader.BackgroundTransparency = 1
+toastHeader.Text               = "Achievement Unlocked!"
+toastHeader.TextColor3         = Color3.fromRGB(100, 255, 100)
+toastHeader.TextScaled         = true
+toastHeader.Font               = Enum.Font.GothamBold
+toastHeader.TextXAlignment     = Enum.TextXAlignment.Left
+toastHeader.ZIndex             = 21
+toastHeader.Parent             = achToast
+
+local toastIconLbl = Instance.new("TextLabel")
+toastIconLbl.Size               = UDim2.new(0, 50, 0, 50)
+toastIconLbl.Position           = UDim2.new(0, 8, 0.5, -25)
+toastIconLbl.BackgroundTransparency = 1
+toastIconLbl.Text               = "🏅"
+toastIconLbl.TextScaled         = true
+toastIconLbl.Font               = Enum.Font.Gotham
+toastIconLbl.ZIndex             = 21
+toastIconLbl.Parent             = achToast
+
+local toastNameLbl = Instance.new("TextLabel")
+toastNameLbl.Name              = "AchName"
+toastNameLbl.Size              = UDim2.new(1, -70, 0, 34)
+toastNameLbl.Position          = UDim2.new(0, 60, 0, 30)
+toastNameLbl.BackgroundTransparency = 1
+toastNameLbl.Text              = ""
+toastNameLbl.TextColor3        = Color3.fromRGB(230, 230, 240)
+toastNameLbl.TextScaled        = true
+toastNameLbl.Font              = Enum.Font.Gotham
+toastNameLbl.TextXAlignment    = Enum.TextXAlignment.Left
+toastNameLbl.ZIndex            = 21
+toastNameLbl.Parent            = achToast
+
+local toastShowing = false
+local toastQueue   = {}
+
+local function showNextToast()
+	if toastShowing or #toastQueue == 0 then return end
+	toastShowing = true
+	local info = table.remove(toastQueue, 1)
+
+	toastIconLbl.Text = info.icon or "🏅"
+	toastNameLbl.Text = (info.name or "") .. "  —  " .. (info.desc or "")
+	achToast.Position = UDim2.new(0.5, -165, 0, -90)
+	achToast.Visible  = true
+
+	local tweenIn = TweenService:Create(
+		achToast,
+		TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+		{ Position = UDim2.new(0.5, -165, 0, 78) }
+	)
+	tweenIn:Play()
+
+	task.delay(3.8, function()
+		local tweenOut = TweenService:Create(
+			achToast,
+			TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+			{ Position = UDim2.new(0.5, -165, 0, -90) }
+		)
+		tweenOut:Play()
+		tweenOut.Completed:Connect(function()
+			achToast.Visible = false
+			toastShowing     = false
+			showNextToast()
+		end)
+	end)
+end
+
+Remotes.AchievementUnlocked.OnClientEvent:Connect(function(info)
+	table.insert(toastQueue, info)
+	showNextToast()
+	-- If journal is open, refresh it so the new achievement shows immediately
+	if journalPanel.Visible then refreshAchievements() end
+end)
+
+-- ============================================================
+-- DEBUG GIVE COINS (Studio only — purple button top-right)
+-- ============================================================
+if RunService:IsStudio() then
+	local debugBtn = Instance.new("TextButton")
+	debugBtn.Name             = "DebugCoinsBtn"
+	debugBtn.Size             = UDim2.new(0, 165, 0, 38)
+	debugBtn.Position         = UDim2.new(1, -183, 0, 70)
+	debugBtn.BackgroundColor3 = Color3.fromRGB(110, 0, 170)
+	debugBtn.BorderSizePixel  = 0
+	debugBtn.Text             = "🟣 DEBUG +1000🪙"
+	debugBtn.TextColor3       = Color3.fromRGB(255, 255, 255)
+	debugBtn.TextScaled       = true
+	debugBtn.Font             = Enum.Font.GothamBold
+	debugBtn.Parent           = screenGui
+	Instance.new("UICorner", debugBtn).CornerRadius = UDim.new(0, 8)
+
+	debugBtn.Activated:Connect(function()
+		Remotes.DebugGiveCoins:FireServer(1000)
+		debugBtn.BackgroundColor3 = Color3.fromRGB(40, 160, 40)
+		task.delay(0.5, function()
+			debugBtn.BackgroundColor3 = Color3.fromRGB(110, 0, 170)
+		end)
+	end)
+end
 
 print("[FishingGui] UI built and ready!")

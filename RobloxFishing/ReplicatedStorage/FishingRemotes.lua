@@ -40,4 +40,11 @@ Remotes.GetUpgrades = getOrCreate("RemoteFunction", "GetUpgrades")
 Remotes.CoinsUpdate = getOrCreate("RemoteEvent",    "CoinsUpdate")
 Remotes.OpenShop    = getOrCreate("RemoteEvent",    "OpenShop")
 
+-- ── Achievements ──────────────────────────────────────────────
+Remotes.AchievementUnlocked = getOrCreate("RemoteEvent",    "AchievementUnlocked")
+Remotes.GetAchievements     = getOrCreate("RemoteFunction", "GetAchievements")
+
+-- ── Debug (Studio only) ───────────────────────────────────────
+Remotes.DebugGiveCoins = getOrCreate("RemoteEvent", "DebugGiveCoins")
+
 return Remotes

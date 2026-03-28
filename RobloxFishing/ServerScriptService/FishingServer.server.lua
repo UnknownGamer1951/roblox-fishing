@@ -1,24 +1,56 @@
 -- ============================================================
 -- FishingServer.lua  (Script in ServerScriptService)
--- Fishing loop, minigame resolution, upgrades, coins, DataStore
+-- Fishing loop, minigame, upgrades, coins, DataStore, achievements
 -- ============================================================
 
 local Players             = game:GetService("Players")
 local ReplicatedStorage   = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
+local RunService          = game:GetService("RunService")
 
 local FishData        = require(ReplicatedStorage:WaitForChild("FishData"))
 local UpgradeData     = require(ReplicatedStorage:WaitForChild("UpgradeData"))
+local AchievementData = require(ReplicatedStorage:WaitForChild("AchievementData"))
 local Remotes         = require(ReplicatedStorage:WaitForChild("FishingRemotes"))
 local InventoryServer = require(ServerScriptService:WaitForChild("InventoryServer"))
 local PlayerData      = require(ServerScriptService:WaitForChild("PlayerData"))
 
 -- ── Per-player state ──────────────────────────────────────────
-local playerState    = {}
+local playerState     = {}
 local tournamentState = {}
 
+-- ── Achievement checker ───────────────────────────────────────
+local function checkAchievements(player)
+	local data = PlayerData.Get(player)
+	if not data then return end
+
+	local stats     = data.achievementStats
+	local completed = data.completedAchievements
+
+	-- Keep upgrade level mirrors in sync
+	stats.baitLevel = data.baitLevel
+	stats.hookLevel = data.hookLevel
+	stats.rodLevel  = data.rodLevel
+	stats.allMaxed  = (data.baitLevel >= 4 and data.hookLevel >= 4 and data.rodLevel >= 4) and 1 or 0
+
+	for _, ach in ipairs(AchievementData) do
+		if not completed[ach.id] then
+			local progress = stats[ach.statKey] or 0
+			if progress >= ach.goal then
+				completed[ach.id] = true
+				Remotes.AchievementUnlocked:FireClient(player, {
+					id   = ach.id,
+					name = ach.name,
+					icon = ach.icon,
+					desc = ach.desc,
+				})
+				print(("[Achievements] %s unlocked: %s %s"):format(player.Name, ach.icon, ach.name))
+			end
+		end
+	end
+end
+
 -- ── Fish picking with bait rarityBonus ────────────────────────
--- Higher rarityBonus shifts weight away from Common toward Rare/Legendary
 local function pickFishWithBonus(rarityBonus)
 	local bonus = rarityBonus or 0
 	local pool, total = {}, 0
@@ -89,7 +121,7 @@ local function getUpgradeParams(player)
 	}
 end
 
--- ── Fishing loop (runs in a task.spawn per cast) ──────────────
+-- ── Fishing loop ──────────────────────────────────────────────
 local function runFishingLoop(player)
 	local state = playerState[player]
 	if not state then return end
@@ -102,11 +134,10 @@ local function runFishingLoop(player)
 	state.currentFish = fish
 	state.biting      = true
 
-	-- Send rarity + name + upgrade params so client can adjust difficulty
 	Remotes.FishBiting:FireClient(player, fish.rarity, fish.name,
 		params.fishSpeedMult, params.barBonus)
 
-	-- Safety timeout: if minigame never resolves, clean up after 45 s
+	-- Safety timeout
 	task.delay(45, function()
 		if state.biting then
 			state.biting = false
@@ -184,7 +215,7 @@ workspace.DescendantAdded:Connect(addPromptToWaterPart)
 setupWaterPrompts()
 task.delay(3, setupWaterPrompts)
 
--- ── Award a caught fish (used by MinigameWon + legacy ReelIn) ─
+-- ── Award a caught fish ───────────────────────────────────────
 local function awardFish(player)
 	local state = playerState[player]
 	if not state or not state.biting or not state.currentFish then return false end
@@ -195,7 +226,7 @@ local function awardFish(player)
 	-- In-memory inventory
 	InventoryServer.AddFish(player, fish.name, size, fish.rarity)
 
-	-- Persistent data (inventory + coins)
+	-- Persistent data
 	local data = PlayerData.Get(player)
 	if data then
 		table.insert(data.inventory, {
@@ -204,9 +235,26 @@ local function awardFish(player)
 			rarity = fish.rarity,
 			time   = os.time(),
 		})
+
+		-- Coins
 		local reward = UpgradeData.CoinRewards[fish.rarity] or 5
-		data.coins   = data.coins + reward
+		data.coins = data.coins + reward
 		Remotes.CoinsUpdate:FireClient(player, data.coins)
+
+		-- Achievement stats
+		local stats = data.achievementStats
+		stats.totalCaught    += 1
+		stats.coinsEarned    += reward
+		if fish.rarity == "Uncommon"  then stats.uncommonCaught  += 1 end
+		if fish.rarity == "Rare"      then stats.rareCaught      += 1 end
+		if fish.rarity == "Legendary" then stats.legendaryCaught += 1 end
+		if size > stats.biggestCatch  then stats.biggestCatch = size  end
+		if not stats.speciesSet[fish.name] then
+			stats.speciesSet[fish.name] = true
+			stats.speciesCaught += 1
+		end
+
+		checkAchievements(player)
 		print(("[FishingServer] +%d coins → %s (total: %d)"):format(reward, player.Name, data.coins))
 	end
 
@@ -239,7 +287,6 @@ Remotes.MinigameLost.OnServerEvent:Connect(function(player)
 	Remotes.FishMissed:FireClient(player)
 end)
 
--- Legacy reel-in (ActionButton / fallback)
 Remotes.ReelIn.OnServerEvent:Connect(function(player)
 	if not awardFish(player) then resetState(player) end
 end)
@@ -277,10 +324,28 @@ Remotes.BuyUpgrade.OnServerInvoke = function(player, upgradeType, targetLevel)
 	data[levelKey] = targetLevel
 	Remotes.CoinsUpdate:FireClient(player, data.coins)
 
+	checkAchievements(player)
 	print(("[FishingServer] %s bought %s L%d (-%d coins, left: %d)"):format(
 		player.Name, upgradeType, targetLevel, tier.cost, data.coins))
 	return true, targetLevel, data.coins
 end
+
+-- ── Achievements ──────────────────────────────────────────────
+Remotes.GetAchievements.OnServerInvoke = function(player)
+	local data = PlayerData.Get(player)
+	if not data then return {}, {} end
+	return data.achievementStats, data.completedAchievements
+end
+
+-- ── Debug: give coins (Studio only) ──────────────────────────
+Remotes.DebugGiveCoins.OnServerEvent:Connect(function(player, amount)
+	if not RunService:IsStudio() then return end  -- server-side safety check
+	local data = PlayerData.Get(player)
+	if not data then return end
+	data.coins = data.coins + (amount or 1000)
+	Remotes.CoinsUpdate:FireClient(player, data.coins)
+	print(("[DEBUG] Gave %d coins to %s (total: %d)"):format(amount or 1000, player.Name, data.coins))
+end)
 
 -- ── Tournament ────────────────────────────────────────────────
 Remotes.JoinTournament.OnServerEvent:Connect(function(player)
@@ -293,7 +358,7 @@ Remotes.JoinTournament.OnServerEvent:Connect(function(player)
 	ts.active      = true
 	ts.fishThisRun = 0
 
-	local DURATION = 180  -- 3 minutes
+	local DURATION = 180
 	Remotes.TournamentStart:FireClient(player, DURATION)
 	print("[FishingServer] Tournament started for", player.Name)
 
@@ -306,9 +371,17 @@ Remotes.JoinTournament.OnServerEvent:Connect(function(player)
 		ts.totalPoints += runPoints
 
 		local trophy = "none"
-		if     ts.totalPoints >= 30 then trophy = "🥇 Gold Trophy"
-		elseif ts.totalPoints >= 15 then trophy = "🥈 Silver Trophy"
-		elseif ts.totalPoints >= 5  then trophy = "🥉 Bronze Trophy"
+		local trophyNum = 0
+		if     ts.totalPoints >= 30 then trophy = "🥇 Gold Trophy";   trophyNum = 3
+		elseif ts.totalPoints >= 15 then trophy = "🥈 Silver Trophy"; trophyNum = 2
+		elseif ts.totalPoints >= 5  then trophy = "🥉 Bronze Trophy"; trophyNum = 1
+		end
+
+		-- Update achievement stats for trophy
+		local data = PlayerData.Get(player)
+		if data and trophyNum > (data.achievementStats.trophyLevel or 0) then
+			data.achievementStats.trophyLevel = trophyNum
+			checkAchievements(player)
 		end
 
 		Remotes.TournamentEnd:FireClient(player, {
@@ -326,10 +399,7 @@ end)
 
 -- ── Player lifecycle ──────────────────────────────────────────
 local function initPlayer(player)
-	-- Load / create persistent data
 	local data = PlayerData.Load(player)
-
-	-- Seed in-memory inventory from saved fish
 	InventoryServer.LoadInventory(player, data.inventory)
 
 	playerState[player] = {
@@ -344,7 +414,6 @@ local function initPlayer(player)
 		fishThisRun = 0,
 	}
 
-	-- Send coins once the client GUI has loaded
 	task.delay(2, function()
 		if player and player.Parent then
 			Remotes.CoinsUpdate:FireClient(player, data.coins)

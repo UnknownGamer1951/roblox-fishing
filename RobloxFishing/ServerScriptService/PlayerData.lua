@@ -17,6 +17,23 @@ local DEFAULT = {
 	hookLevel = 1,
 	rodLevel  = 1,
 	inventory = {},
+	-- Achievement tracking stats (server-authoritative)
+	achievementStats = {
+		totalCaught    = 0,
+		uncommonCaught = 0,
+		rareCaught     = 0,
+		legendaryCaught= 0,
+		biggestCatch   = 0,
+		speciesCaught  = 0,   -- count of unique species caught
+		speciesSet     = {},  -- { [fishName] = true }
+		coinsEarned    = 0,   -- lifetime total (never decreases)
+		baitLevel      = 1,
+		hookLevel      = 1,
+		rodLevel       = 1,
+		allMaxed       = 0,   -- 1 when all three upgrades are level 4
+		trophyLevel    = 0,   -- 0=none 1=bronze 2=silver 3=gold
+	},
+	completedAchievements = {},  -- { [achievementId] = true }
 }
 
 local function deepCopy(t)
