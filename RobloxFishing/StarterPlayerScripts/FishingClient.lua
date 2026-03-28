@@ -25,21 +25,38 @@ local isFishing  = false   -- true while line is in the water
 local isBiting   = false   -- true during the reel-in window
 
 -- -------------------------------------------------------
--- Helper: Get the point in the world the player is looking at
--- Used to decide where the bobber lands.
+-- Helper: Raycast into the scene and check if we hit a water part.
+-- Returns the hit position and a boolean indicating water was found.
+-- Water parts must be named "Water" (or be a child of a part named "Water").
 -- -------------------------------------------------------
-local function getCastTarget()
-    -- Cast a ray from the center of the screen forward 30 studs
+local function getWaterTarget()
     local screenCenter = Vector2.new(
         camera.ViewportSize.X / 2,
         camera.ViewportSize.Y / 2
     )
     local unitRay = camera:ScreenPointToRay(screenCenter.X, screenCenter.Y)
 
-    -- Extend the ray 30 studs in the look direction
-    local target = unitRay.Origin + unitRay.Direction * 30
+    -- Exclude the local player's character from the raycast
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    local character = localPlayer.Character
+    if character then
+        raycastParams.FilterDescendantsInstances = {character}
+    end
 
-    return target
+    local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 60, raycastParams)
+
+    if result and result.Instance then
+        local hit = result.Instance
+        -- Accept parts named "Water" or children of a part/model named "Water"
+        local isWater = hit.Name == "Water"
+            or (hit.Parent and hit.Parent.Name == "Water")
+        if isWater then
+            return result.Position, true
+        end
+    end
+
+    return nil, false
 end
 
 -- -------------------------------------------------------
@@ -56,7 +73,21 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 
     if not isFishing then
         -- ---- CAST ----
-        local castTarget = getCastTarget()
+        -- Only allow casting when the player is aiming at a water part
+        local castTarget, isWater = getWaterTarget()
+        if not isWater then
+            local gui = localPlayer.PlayerGui:FindFirstChild("FishingGui")
+            if gui and gui:FindFirstChild("StatusLabel") then
+                gui.StatusLabel.Text = "Aim at the water to cast your line!"
+                task.delay(2, function()
+                    if gui and gui:FindFirstChild("StatusLabel") and not isFishing then
+                        gui.StatusLabel.Text = "Press [Click] to cast your line."
+                    end
+                end)
+            end
+            return
+        end
+
         isFishing = true
         isBiting  = false
 

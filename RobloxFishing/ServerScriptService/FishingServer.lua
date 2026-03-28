@@ -28,6 +28,26 @@ local playerState = {}
 -- }
 
 -- -------------------------------------------------------
+-- Utility: Check whether a position is on or near a water part.
+-- Water parts must be named "Water".
+-- -------------------------------------------------------
+local function isNearWater(position)
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and obj.Name == "Water" then
+            -- Build an AABB check with a small tolerance (2 studs)
+            local halfSize = obj.Size / 2 + Vector3.new(2, 4, 2)
+            local local_pos = obj.CFrame:PointToObjectSpace(position)
+            if math.abs(local_pos.X) <= halfSize.X
+            and math.abs(local_pos.Y) <= halfSize.Y
+            and math.abs(local_pos.Z) <= halfSize.Z then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+-- -------------------------------------------------------
 -- Utility: Create a simple bobber part in the world
 -- -------------------------------------------------------
 local function spawnBobber(position)
@@ -127,6 +147,12 @@ Remotes.CastLine.OnServerEvent:Connect(function(player, castDirection)
     -- castDirection is a Vector3 sent from the client (a point in the world).
     -- We drop the bobber right at that point, slightly above ground.
     local landPos = castDirection + Vector3.new(0, 0.3, 0)
+
+    -- Server-side water validation: reject casts that don't land on water
+    if not isNearWater(landPos) then
+        state.isFishing = false
+        return
+    end
 
     -- Spawn the bobber visually
     removeBobber(state)
