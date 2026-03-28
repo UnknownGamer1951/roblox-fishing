@@ -25,9 +25,38 @@ local isFishing  = false   -- true while line is in the water
 local isBiting   = false   -- true during the reel-in window
 
 -- -------------------------------------------------------
--- Helper: Raycast into the scene and check if we hit a water part.
--- Returns the hit position and a boolean indicating water was found.
--- Water parts must be named "Water" (or be a child of a part named "Water").
+-- Helper: Returns true if a raycast result counts as water.
+-- Detects: Roblox Terrain water, parts with Water material,
+-- and any part/model whose name contains "water" (case-insensitive).
+-- -------------------------------------------------------
+local function isWaterHit(result)
+    if not result then return false end
+
+    -- Terrain water or any hit with Water material
+    if result.Material == Enum.Material.Water then return true end
+
+    local hit = result.Instance
+    if not hit then return false end
+
+    -- Part whose material is Water
+    if hit:IsA("BasePart") and hit.Material == Enum.Material.Water then
+        return true
+    end
+
+    -- Name contains "water" anywhere (covers "Water", "WaterPart", "ocean_water", etc.)
+    local function hasWater(name)
+        return name:lower():find("water") ~= nil
+    end
+
+    if hasWater(hit.Name) then return true end
+    if hit.Parent and hasWater(hit.Parent.Name) then return true end
+
+    return false
+end
+
+-- -------------------------------------------------------
+-- Helper: Raycast into the scene and return the water hit position.
+-- Returns (position, true) if water was found, (nil, false) otherwise.
 -- -------------------------------------------------------
 local function getWaterTarget()
     local screenCenter = Vector2.new(
@@ -46,14 +75,8 @@ local function getWaterTarget()
 
     local result = workspace:Raycast(unitRay.Origin, unitRay.Direction * 60, raycastParams)
 
-    if result and result.Instance then
-        local hit = result.Instance
-        -- Accept parts named "Water" or children of a part/model named "Water"
-        local isWater = hit.Name == "Water"
-            or (hit.Parent and hit.Parent.Name == "Water")
-        if isWater then
-            return result.Position, true
-        end
+    if isWaterHit(result) then
+        return result.Position, true
     end
 
     return nil, false

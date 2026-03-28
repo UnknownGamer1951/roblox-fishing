@@ -28,19 +28,34 @@ local playerState = {}
 -- }
 
 -- -------------------------------------------------------
--- Utility: Check whether a position is on or near a water part.
--- Water parts must be named "Water".
+-- Utility: Check whether a position is on or near any water.
+-- Accepts: Terrain water, parts with Water material, or any
+-- part/model whose name contains "water" (case-insensitive).
 -- -------------------------------------------------------
 local function isNearWater(position)
+    -- Check Terrain water at the position
+    local cellPos = workspace.Terrain:WorldToCell(position)
+    local material = workspace.Terrain:GetCell(cellPos.X, cellPos.Y, cellPos.Z)
+    if material == Enum.CellMaterial.Water then
+        return true
+    end
+
+    -- Check all BaseParts in the workspace
     for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and obj.Name == "Water" then
-            -- Build an AABB check with a small tolerance (2 studs)
-            local halfSize = obj.Size / 2 + Vector3.new(2, 4, 2)
-            local local_pos = obj.CFrame:PointToObjectSpace(position)
-            if math.abs(local_pos.X) <= halfSize.X
-            and math.abs(local_pos.Y) <= halfSize.Y
-            and math.abs(local_pos.Z) <= halfSize.Z then
-                return true
+        if obj:IsA("BasePart") then
+            local nameMatch = obj.Name:lower():find("water") ~= nil
+                or (obj.Parent and obj.Parent.Name:lower():find("water") ~= nil)
+            local materialMatch = obj.Material == Enum.Material.Water
+
+            if nameMatch or materialMatch then
+                -- AABB proximity check with a generous tolerance
+                local halfSize = obj.Size / 2 + Vector3.new(4, 6, 4)
+                local localPos = obj.CFrame:PointToObjectSpace(position)
+                if math.abs(localPos.X) <= halfSize.X
+                and math.abs(localPos.Y) <= halfSize.Y
+                and math.abs(localPos.Z) <= halfSize.Z then
+                    return true
+                end
             end
         end
     end
