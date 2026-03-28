@@ -140,14 +140,17 @@ local function addPromptToWaterPart(part)
     if part:FindFirstChildOfClass("ProximityPrompt") then return end -- already has one
 
     local prompt = Instance.new("ProximityPrompt")
-    prompt.ActionText           = "Fish"
-    prompt.ObjectText           = "Water"
-    prompt.KeyboardKeyCode      = Enum.KeyCode.E
-    prompt.HoldDuration         = 0
+    prompt.ActionText            = "Fish"
+    prompt.ObjectText            = "Water"
+    prompt.KeyboardKeyCode       = Enum.KeyCode.E
+    prompt.HoldDuration          = 0
     prompt.MaxActivationDistance = 20
-    prompt.Parent               = part
+    prompt.Parent                = part
+
+    print("[FishingServer] Added fishing prompt to:", part.Name, "| Material:", part.Material, "| Parent:", part.Parent and part.Parent.Name)
 
     prompt.Triggered:Connect(function(player)
+        print("[FishingServer] Prompt triggered by", player.Name)
         startFishing(player, part)
     end)
 end
@@ -157,9 +160,14 @@ end
 -- Runs once on load, then watches for new parts
 -- -------------------------------------------------------
 local function setupWaterPrompts()
+    local count = 0
     for _, obj in ipairs(workspace:GetDescendants()) do
-        addPromptToWaterPart(obj)
+        if obj:IsA("BasePart") then
+            addPromptToWaterPart(obj)
+            if obj:FindFirstChildOfClass("ProximityPrompt") then count += 1 end
+        end
     end
+    print("[FishingServer] Water scan complete. Prompts on", count, "part(s).")
 end
 
 workspace.DescendantAdded:Connect(function(obj)

@@ -29,8 +29,10 @@ end
 
 local function setStatus(text)
     local gui = getGui()
-    if gui and gui:FindFirstChild("StatusLabel") then
-        gui.StatusLabel.Text = text
+    if gui then
+        -- StatusLabel is nested inside StatusFrame, use recursive search
+        local label = gui:FindFirstChild("StatusLabel", true)
+        if label then label.Text = text end
     end
 end
 
