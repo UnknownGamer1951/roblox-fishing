@@ -1,114 +1,210 @@
 -- ============================================================
--- FishData.lua
--- Location in Studio: ReplicatedStorage > FishData (ModuleScript)
+-- FishData.lua  (ModuleScript in ReplicatedStorage)
+-- Fish table, random-pick, bell-curve size roll, sell value.
 --
--- This module holds all the fish types in the game.
--- You can add more fish here later without touching anything else.
+-- Fish fields:
+--   name      - display name
+--   rarity    - "Common" | "Uncommon" | "Rare" | "Legendary"
+--   weight    - weighted-random pick chance (higher = more common)
+--   minSize   - smallest possible size in cm
+--   maxSize   - largest possible size in cm
+--   color     - BrickColor name used for bobber tint
+--   baseValue - base coin sell price (before size bonus)
+--   baitTag   - optional tag matched by bait type ("nocturnal", "predator", "common")
 -- ============================================================
 
 local FishData = {}
 
--- Each fish has:
---   name      - display name shown to the player
---   rarity    - "Common", "Uncommon", "Rare", "Legendary"
---   weight    - chance weight (higher = shows up more often)
---   minSize   - smallest possible size in cm
---   maxSize   - biggest possible size in cm
---   color     - BrickColor name for the fish part in the world
-
 FishData.Fish = {
-    {
-        name    = "Bluegill",
-        rarity  = "Common",
-        weight  = 50,
-        minSize = 10,
-        maxSize = 25,
-        color   = "Bright blue",
-    },
-    {
-        name    = "Catfish",
-        rarity  = "Common",
-        weight  = 40,
-        minSize = 20,
-        maxSize = 60,
-        color   = "Dark grey",
-    },
-    {
-        name    = "Bass",
-        rarity  = "Uncommon",
-        weight  = 25,
-        minSize = 25,
-        maxSize = 55,
-        color   = "Olive",
-    },
-    {
-        name    = "Trout",
-        rarity  = "Uncommon",
-        weight  = 20,
-        minSize = 20,
-        maxSize = 50,
-        color   = "Medium green",
-    },
-    {
-        name    = "Pike",
-        rarity  = "Rare",
-        weight  = 8,
-        minSize = 40,
-        maxSize = 90,
-        color   = "Dark green",
-    },
-    {
-        name    = "Golden Koi",
-        rarity  = "Rare",
-        weight  = 5,
-        minSize = 30,
-        maxSize = 70,
-        color   = "Bright yellow",
-    },
-    {
-        name    = "Moonfish",
-        rarity  = "Legendary",
-        weight  = 1,
-        minSize = 60,
-        maxSize = 120,
-        color   = "White",
-    },
-    {
-        name    = "Void Eel",
-        rarity  = "Legendary",
-        weight  = 1,
-        minSize = 80,
-        maxSize = 150,
-        color   = "Black",
-    },
+	-- ── Common ────────────────────────────────────────────────
+	{
+		name      = "Bluegill",
+		rarity    = "Common",
+		weight    = 50,
+		minSize   = 10,
+		maxSize   = 25,
+		color     = "Bright blue",
+		baseValue = 4,
+		baitTag   = "common",
+	},
+	{
+		name      = "Catfish",
+		rarity    = "Common",
+		weight    = 40,
+		minSize   = 20,
+		maxSize   = 60,
+		color     = "Dark grey",
+		baseValue = 6,
+		baitTag   = "nocturnal",
+	},
+	{
+		name      = "Perch",
+		rarity    = "Common",
+		weight    = 35,
+		minSize   = 12,
+		maxSize   = 30,
+		color     = "Bright orange",
+		baseValue = 5,
+		baitTag   = "common",
+	},
+
+	-- ── Uncommon ──────────────────────────────────────────────
+	{
+		name      = "Bass",
+		rarity    = "Uncommon",
+		weight    = 25,
+		minSize   = 25,
+		maxSize   = 55,
+		color     = "Olive",
+		baseValue = 14,
+		baitTag   = "predator",
+	},
+	{
+		name      = "Trout",
+		rarity    = "Uncommon",
+		weight    = 20,
+		minSize   = 20,
+		maxSize   = 50,
+		color     = "Medium green",
+		baseValue = 12,
+		baitTag   = nil,
+	},
+	{
+		name      = "Carp",
+		rarity    = "Uncommon",
+		weight    = 18,
+		minSize   = 30,
+		maxSize   = 65,
+		color     = "Sand yellow",
+		baseValue = 13,
+		baitTag   = "common",
+	},
+
+	-- ── Rare ──────────────────────────────────────────────────
+	{
+		name      = "Pike",
+		rarity    = "Rare",
+		weight    = 8,
+		minSize   = 40,
+		maxSize   = 90,
+		color     = "Dark green",
+		baseValue = 40,
+		baitTag   = "predator",
+	},
+	{
+		name      = "Golden Koi",
+		rarity    = "Rare",
+		weight    = 5,
+		minSize   = 30,
+		maxSize   = 70,
+		color     = "Bright yellow",
+		baseValue = 55,
+		baitTag   = nil,
+	},
+	{
+		name      = "Shadow Carp",
+		rarity    = "Rare",
+		weight    = 6,
+		minSize   = 35,
+		maxSize   = 75,
+		color     = "Dark indigo",
+		baseValue = 48,
+		baitTag   = "nocturnal",
+	},
+	{
+		name      = "Lanternfish",
+		rarity    = "Rare",
+		weight    = 5,
+		minSize   = 15,
+		maxSize   = 40,
+		color     = "Cyan",
+		baseValue = 52,
+		baitTag   = "nocturnal",
+	},
+	{
+		name      = "River Dart",
+		rarity    = "Rare",
+		weight    = 6,
+		minSize   = 20,
+		maxSize   = 55,
+		color     = "Silver",
+		baseValue = 45,
+		baitTag   = "predator",
+	},
+
+	-- ── Legendary ─────────────────────────────────────────────
+	{
+		name      = "Moonfish",
+		rarity    = "Legendary",
+		weight    = 1,
+		minSize   = 60,
+		maxSize   = 120,
+		color     = "White",
+		baseValue = 130,
+		baitTag   = "nocturnal",
+	},
+	{
+		name      = "Void Eel",
+		rarity    = "Legendary",
+		weight    = 1,
+		minSize   = 80,
+		maxSize   = 150,
+		color     = "Black",
+		baseValue = 160,
+		baitTag   = "nocturnal",
+	},
 }
 
--- -------------------------------------------------------
--- PickRandomFish()
--- Returns one fish table chosen by weighted random.
--- You don't need to call this yourself; FishingServer does.
--- -------------------------------------------------------
+-- ── Weighted random pick (used by server as fallback) ──────
 function FishData.PickRandomFish()
-    -- Add up all the weights so we know the total pool size
-    local totalWeight = 0
-    for _, fish in ipairs(FishData.Fish) do
-        totalWeight = totalWeight + fish.weight
-    end
+	local totalWeight = 0
+	for _, fish in ipairs(FishData.Fish) do
+		totalWeight = totalWeight + fish.weight
+	end
+	local roll = math.random(1, totalWeight)
+	local cum  = 0
+	for _, fish in ipairs(FishData.Fish) do
+		cum = cum + fish.weight
+		if roll <= cum then return fish end
+	end
+	return FishData.Fish[1]
+end
 
-    -- Roll a random number inside the pool
-    local roll = math.random(1, totalWeight)
+-- ── Bell-curve size roll ────────────────────────────────────
+-- Returns a size drawn from a normal distribution centred on
+-- the fish's midpoint. Clamped to [minSize, maxSize].
+function FishData.RollSize(fish)
+	-- Box-Muller transform → standard normal z
+	local u1 = math.max(1e-9, math.random())   -- avoid log(0)
+	local u2 = math.random()
+	local z  = math.sqrt(-2 * math.log(u1)) * math.cos(2 * math.pi * u2)
+	-- Scale: ±3σ spans the full range (99.7% of samples stay inside)
+	local mean   = (fish.minSize + fish.maxSize) / 2
+	local stdDev = (fish.maxSize - fish.minSize) / 6
+	local size   = math.round(mean + z * stdDev)
+	return math.clamp(size, fish.minSize, fish.maxSize)
+end
 
-    -- Walk through the list until we pass the roll point
-    local cumulative = 0
-    for _, fish in ipairs(FishData.Fish) do
-        cumulative = cumulative + fish.weight
-        if roll <= cumulative then
-            return fish
-        end
-    end
+-- ── U-shaped sell value ─────────────────────────────────────
+-- Both very small AND very large catches sell for more.
+-- Legendary/Rare caps the bonus so they don't get overpowered.
+function FishData.SellValue(fish, size)
+	local mean      = (fish.minSize + fish.maxSize) / 2
+	local halfRange = (fish.maxSize - fish.minSize) / 2
+	-- Normalised deviation: 0 at mean, 1 at extremes
+	local deviation = halfRange > 0 and math.abs(size - mean) / halfRange or 0
 
-    -- Fallback: return the first fish (should never happen)
-    return FishData.Fish[1]
+	-- Max bonus % depends on rarity (rarer = smaller bonus cap)
+	local maxBonus
+	if     fish.rarity == "Legendary" then maxBonus = 0.18
+	elseif fish.rarity == "Rare"      then maxBonus = 0.30
+	elseif fish.rarity == "Uncommon"  then maxBonus = 0.40
+	else                                   maxBonus = 0.50
+	end
+
+	-- Power curve: deviation^1.5 keeps the middle flat and extremes rewarded
+	local bonus = deviation ^ 1.5 * maxBonus
+	return math.max(1, math.floor(fish.baseValue * (1 + bonus)))
 end
 
 return FishData
