@@ -31,6 +31,20 @@ task.delay(3, function()
 	end
 end)
 
+-- WeatherService: loaded lazily to avoid circular require ordering issues
+local WeatherService = nil
+task.delay(3, function()
+	local ok, mod = pcall(function()
+		return require(ServerScriptService:WaitForChild("WeatherService", 10))
+	end)
+	if ok and mod then
+		WeatherService = mod
+		print("[FishingServer] Linked to WeatherService")
+	else
+		warn("[FishingServer] Could not link WeatherService:", mod)
+	end
+end)
+
 -- ── Per-player fishing state ───────────────────────────────
 local playerState = {}
 
@@ -77,13 +91,27 @@ end
 local baitById = {}
 for _, b in ipairs(BaitData) do baitById[b.id] = b end
 
+-- ── Time-of-day helper ─────────────────────────────────────
+local Lighting = game:GetService("Lighting")
+local function isNightTime()
+	local t = Lighting.ClockTime
+	return t >= 20 or t < 6
+end
+
 -- ── Fish picker with reel + bait bonuses ──────────────────
 -- rarityBonus 0-0.50 shifts weights toward rarer fish.
 -- If baitTag set, fish matching the tag get 3x weight.
+-- Only fish valid for the current time of day are included.
 local function pickFish(rarityBonus, baitTag)
 	local b = rarityBonus or 0
+	local night = isNightTime()
 	local pool, total = {}, 0
 	for _, fish in ipairs(FishData.Fish) do
+		-- Filter by spawn time
+		local spawnTime = fish.spawnTime or "both"
+		if spawnTime == "day"   and night then continue end
+		if spawnTime == "night" and not night then continue end
+
 		local mult
 		if     fish.rarity == "Common"    then mult = math.max(0.05, 1.0 - b * 1.5)
 		elseif fish.rarity == "Uncommon"  then mult = 1.0 + b * 1.0
@@ -99,12 +127,19 @@ local function pickFish(rarityBonus, baitTag)
 		table.insert(pool, { fish = fish, w = w })
 		total = total + w
 	end
+	-- Fallback: all fish (shouldn't happen with "both" entries)
+	if total == 0 then
+		for _, fish in ipairs(FishData.Fish) do
+			table.insert(pool, { fish = fish, w = fish.weight })
+			total = total + fish.weight
+		end
+	end
 	local roll, cum = math.random() * total, 0
 	for _, entry in ipairs(pool) do
 		cum = cum + entry.w
 		if roll <= cum then return entry.fish end
 	end
-	return FishData.Fish[1]
+	return pool[1] and pool[1].fish or FishData.Fish[1]
 end
 
 -- ── Bobber helpers ─────────────────────────────────────────
@@ -156,7 +191,7 @@ end
 local function getUpgradeParams(player)
 	local data = PlayerData.Get(player)
 	if not data then
-		return { rarityBonus=0, fishSpeedMult=1, barBonus=0, waitMult=1, baitTag=nil }
+		return { rarityBonus=0, fishSpeedMult=1, barBonus=0, waitMult=1, speedBonus=0, baitTag=nil }
 	end
 	local reel = UpgradeData.Reel[data.reelLevel] or UpgradeData.Reel[1]
 	local hook = UpgradeData.Hook[data.hookLevel] or UpgradeData.Hook[1]
@@ -213,8 +248,9 @@ local function runFishingLoop(player)
 		waitMin = waitMin / 2
 		waitMax = waitMax / 2
 	end
-	-- Apply reel wait multiplier and bait speed bonus
-	local totalMult = params.waitMult * (1 - params.speedBonus)
+	-- Apply reel wait multiplier, bait speed bonus, and rain bonus (x2 speed = x0.5 wait)
+	local rainMult  = (WeatherService and WeatherService.IsRaining()) and 0.5 or 1
+	local totalMult = params.waitMult * (1 - params.speedBonus) * rainMult
 	waitMin = math.max(2, math.floor(waitMin * totalMult))
 	waitMax = math.max(3, math.floor(waitMax * totalMult))
 	task.wait(math.random(waitMin, waitMax))
@@ -231,8 +267,8 @@ local function runFishingLoop(player)
 	Remotes.FishBiting:FireClient(player, fish.rarity, fish.name,
 		params.fishSpeedMult, params.barBonus)
 
-	-- 90s safety timeout
-	task.delay(90, function()
+	-- 600s safety timeout (fish battle has no time pressure; only ends on catch or lose)
+	task.delay(600, function()
 		if state.biting then
 			state.biting = false
 			resetState(player)
@@ -335,6 +371,10 @@ local function awardFish(player)
 			data.stars = data.stars + 1
 			Remotes.StarsUpdate:FireClient(player, data.stars)
 		end
+
+		-- Track caught fish names (for compendium reveal)
+		if not data.caughtFishNames then data.caughtFishNames = {} end
+		data.caughtFishNames[fish.name] = true
 
 		-- Achievement stats
 		local stats = data.achievementStats
@@ -455,6 +495,13 @@ Remotes.BuyBait.OnServerInvoke = function(player, baitId)
 	return true, data.coins
 end
 
+-- ── Caught fish compendium ─────────────────────────────────
+Remotes.GetCaughtFish.OnServerInvoke = function(player)
+	local data = PlayerData.Get(player)
+	if not data then return {} end
+	return data.caughtFishNames or {}
+end
+
 -- ── Achievements ──────────────────────────────────────────
 Remotes.GetAchievements.OnServerInvoke = function(player)
 	local data = PlayerData.Get(player)
@@ -477,6 +524,25 @@ Remotes.DebugGiveStars.OnServerEvent:Connect(function(player, amount)
 	if not data then return end
 	data.stars = data.stars + (amount or 20)
 	Remotes.StarsUpdate:FireClient(player, data.stars)
+end)
+
+Remotes.DebugGiveFish.OnServerEvent:Connect(function(player)
+	if not RunService:IsStudio() then return end
+	local samples = {
+		{ name="Salmon",     size=32, rarity="Common"    },
+		{ name="Bass",       size=28, rarity="Common"    },
+		{ name="Trout",      size=41, rarity="Uncommon"  },
+		{ name="Swordfish",  size=89, rarity="Rare"      },
+		{ name="Dragon Eel", size=120, rarity="Legendary" },
+	}
+	for _, f in ipairs(samples) do
+		InventoryServer.AddFish(player, f.name, f.size, f.rarity)
+		local data = PlayerData.Get(player)
+		if data then
+			table.insert(data.inventory, { name=f.name, size=f.size, rarity=f.rarity, time=os.time() })
+		end
+	end
+	print("[Debug] Added 5 test fish for", player.Name)
 end)
 
 -- ── Player lifecycle ───────────────────────────────────────

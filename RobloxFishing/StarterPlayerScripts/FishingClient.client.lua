@@ -20,6 +20,21 @@ local RARITY_COLORS = {
 	Legendary = Color3.fromRGB(255, 180, 0),
 }
 
+-- Bar "inside" colours per rarity (used for catch bar + progress fill)
+local RARITY_BAR_COLORS = {
+	Common    = Color3.fromRGB(140, 210, 140),   -- muted green
+	Uncommon  = Color3.fromRGB(60,  210, 80),    -- bright green
+	Rare      = Color3.fromRGB(70,  130, 255),   -- blue
+	Legendary = Color3.fromRGB(255, 180, 0),     -- gold
+}
+-- Bar "outside" colours per rarity
+local RARITY_BAR_MISS = {
+	Common    = Color3.fromRGB(200, 100, 60),
+	Uncommon  = Color3.fromRGB(220, 110, 30),
+	Rare      = Color3.fromRGB(200, 60,  200),
+	Legendary = Color3.fromRGB(220, 60,  60),
+}
+
 local isFishing      = false
 local isBiting       = false
 local minigameActive = false
@@ -27,10 +42,10 @@ local isHoldingBar   = false
 
 -- ── Base difficulty per rarity (modified by server upgrade params) ──
 local DIFFICULTY = {
-	Common    = { barHeight=0.34, fishAccel=3.0,  fishDamping=4.5, drainRate=0.09, fillRate=0.24 },
-	Uncommon  = { barHeight=0.28, fishAccel=4.5,  fishDamping=4.5, drainRate=0.13, fillRate=0.21 },
-	Rare      = { barHeight=0.22, fishAccel=6.0,  fishDamping=5.0, drainRate=0.17, fillRate=0.18 },
-	Legendary = { barHeight=0.16, fishAccel=8.5,  fishDamping=5.5, drainRate=0.22, fillRate=0.16 },
+	Common    = { barHeight=0.34, fishAccel=3.0,  fishDamping=4.5, drainRate=0.03, fillRate=0.24 },
+	Uncommon  = { barHeight=0.28, fishAccel=4.5,  fishDamping=4.5, drainRate=0.04, fillRate=0.21 },
+	Rare      = { barHeight=0.22, fishAccel=6.0,  fishDamping=5.0, drainRate=0.06, fillRate=0.18 },
+	Legendary = { barHeight=0.16, fishAccel=8.5,  fishDamping=5.5, drainRate=0.08, fillRate=0.16 },
 }
 
 local RARITY_HEX = {
@@ -44,7 +59,7 @@ local function coloredName(rarity, name)
 	return '<font color="' .. hex .. '">' .. (name or "Fish") .. '</font>'
 end
 
-local mg = { barY=0.33, fishY=0.5, fishVel=0, fishTarget=0.5, targetTimer=0, progress=0.3, difficulty=nil }
+local mg = { barY=0.33, fishY=0.5, fishVel=0, fishTarget=0.5, targetTimer=0, progress=0.3, difficulty=nil, rarity="Common" }
 local minigameConn = nil
 
 -- ── Helpers ───────────────────────────────────────────────────
@@ -78,7 +93,8 @@ end
 
 -- ── Start minigame ────────────────────────────────────────────
 local function startMinigame(rarity, fishSpeedMult, barBonus)
-	local base = DIFFICULTY[rarity] or DIFFICULTY.Common
+	local safeRarity = (DIFFICULTY[rarity] and rarity) or "Common"
+	local base = DIFFICULTY[safeRarity]
 	local diff = {
 		barHeight   = math.clamp(base.barHeight + (barBonus or 0), 0.10, 0.60),
 		fishAccel   = base.fishAccel   * (fishSpeedMult or 1),
@@ -87,23 +103,40 @@ local function startMinigame(rarity, fishSpeedMult, barBonus)
 		fillRate    = base.fillRate,
 	}
 	mg.difficulty  = diff
+	mg.rarity      = safeRarity
 	mg.barY        = 0.33
 	mg.fishY       = math.random() * 0.5 + 0.25
 	mg.fishVel     = 0
 	mg.fishTarget  = math.random() * 0.6 + 0.2
 	mg.targetTimer = 0
-	mg.progress    = 0.3
+	mg.progress    = 0.5
 	minigameActive = true
+
+	local rarColor    = RARITY_COLORS[safeRarity]    or Color3.new(1,1,1)
+	local barInsideC  = RARITY_BAR_COLORS[safeRarity] or Color3.fromRGB(60,210,80)
 
 	local gui = getGui()
 	if not gui then return end
 	local panel = gui:FindFirstChild("MinigamePanel")
 	if not panel then return end
 
+	-- Tint the panel title with rarity colour
+	local title = panel:FindFirstChild("TitleLabel")
+	if title then title.TextColor3 = rarColor end
+
 	local container = panel:FindFirstChild("Container")
 	if container then
 		local bar = container:FindFirstChild("CatchBar")
-		if bar then bar.Size = UDim2.new(0.9, 0, diff.barHeight, 0) end
+		if bar then
+			bar.Size             = UDim2.new(0.9, 0, diff.barHeight, 0)
+			bar.BackgroundColor3 = barInsideC   -- start with rarity colour
+		end
+		-- Tint fish icon with rarity colour
+		local fishEl = container:FindFirstChild("FishIcon")
+		if fishEl then
+			local emoji = fishEl:FindFirstChildOfClass("TextLabel")
+			if emoji then emoji.TextColor3 = rarColor end
+		end
 		local holdArea = container:FindFirstChild("HoldArea")
 		if holdArea then
 			holdArea.InputBegan:Connect(function(inp)
@@ -156,13 +189,17 @@ local function startMinigame(rarity, fishSpeedMult, barBonus)
 		local panel2 = gui2:FindFirstChild("MinigamePanel")
 		if not panel2 then return end
 
+		local insideColor = (RARITY_BAR_COLORS[mg.rarity] or Color3.fromRGB(60,210,80))
+		local missColor   = (RARITY_BAR_MISS[mg.rarity]   or Color3.fromRGB(255,150,30))
+		local barColor    = inside and insideColor or missColor
+
 		local cont = panel2:FindFirstChild("Container")
 		if cont then
 			local bar2 = cont:FindFirstChild("CatchBar")
 			if bar2 then
 				bar2.Position         = UDim2.new(0.05, 0, mg.barY, 0)
 				bar2.Size             = UDim2.new(0.9,  0, d.barHeight, 0)
-				bar2.BackgroundColor3 = inside and Color3.fromRGB(60,210,80) or Color3.fromRGB(255,150,30)
+				bar2.BackgroundColor3 = barColor
 			end
 			local fishEl = cont:FindFirstChild("FishIcon")
 			if fishEl then fishEl.Position = UDim2.new(0.1, 0, mg.fishY - 0.035, 0) end
@@ -173,7 +210,7 @@ local function startMinigame(rarity, fishSpeedMult, barBonus)
 			if fill then
 				fill.Size             = UDim2.new(1, 0, mg.progress, 0)
 				fill.Position         = UDim2.new(0, 0, 1 - mg.progress, 0)
-				fill.BackgroundColor3 = inside and Color3.fromRGB(60,210,80) or Color3.fromRGB(255,80,50)
+				fill.BackgroundColor3 = barColor
 			end
 		end
 

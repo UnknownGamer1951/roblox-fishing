@@ -96,6 +96,7 @@ local function endTournament()
 				rank        = rank,
 				fishCaught  = entry.count,
 				trophy      = trophyStr,
+				bonus       = entry.count >= 3,
 				leaderboard = entries,
 			})
 		end

@@ -35,6 +35,7 @@ local DEFAULT = {
 		trophyLevel     = 0,
 	},
 	completedAchievements = {},
+	caughtFishNames = {},   -- set: fishName → true (persists across sessions)
 }
 
 local function deepCopy(t)

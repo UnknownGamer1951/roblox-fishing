@@ -63,8 +63,15 @@ Remotes.OpenShop    = getOrCreate("RemoteEvent",    "OpenShop")
 Remotes.AchievementUnlocked = getOrCreate("RemoteEvent",    "AchievementUnlocked")
 Remotes.GetAchievements     = getOrCreate("RemoteFunction", "GetAchievements")
 
+-- ── Weather ───────────────────────────────────────────────────
+-- Server → Client: rain started/stopped (bool isRaining)
+Remotes.WeatherChange   = getOrCreate("RemoteEvent",    "WeatherChange")
+-- Client asks for caught fish names {name=true, ...}
+Remotes.GetCaughtFish   = getOrCreate("RemoteFunction", "GetCaughtFish")
+
 -- ── Debug (Studio only) ───────────────────────────────────────
 Remotes.DebugGiveCoins = getOrCreate("RemoteEvent", "DebugGiveCoins")
 Remotes.DebugGiveStars = getOrCreate("RemoteEvent", "DebugGiveStars")
+Remotes.DebugGiveFish  = getOrCreate("RemoteEvent", "DebugGiveFish")
 
 return Remotes

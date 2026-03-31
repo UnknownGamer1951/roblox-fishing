@@ -26,6 +26,7 @@ FishData.Fish = {
 		color     = "Bright blue",
 		baseValue = 4,
 		baitTag   = "common",
+		spawnTime = "day",    -- active during daytime
 	},
 	{
 		name      = "Catfish",
@@ -36,6 +37,7 @@ FishData.Fish = {
 		color     = "Dark grey",
 		baseValue = 6,
 		baitTag   = "nocturnal",
+		spawnTime = "night",  -- nocturnal feeder
 	},
 	{
 		name      = "Perch",
@@ -46,6 +48,7 @@ FishData.Fish = {
 		color     = "Bright orange",
 		baseValue = 5,
 		baitTag   = "common",
+		spawnTime = "day",
 	},
 
 	-- ── Uncommon ──────────────────────────────────────────────
@@ -58,6 +61,7 @@ FishData.Fish = {
 		color     = "Olive",
 		baseValue = 14,
 		baitTag   = "predator",
+		spawnTime = "both",
 	},
 	{
 		name      = "Trout",
@@ -68,6 +72,7 @@ FishData.Fish = {
 		color     = "Medium green",
 		baseValue = 12,
 		baitTag   = nil,
+		spawnTime = "day",
 	},
 	{
 		name      = "Carp",
@@ -78,6 +83,7 @@ FishData.Fish = {
 		color     = "Sand yellow",
 		baseValue = 13,
 		baitTag   = "common",
+		spawnTime = "both",
 	},
 
 	-- ── Rare ──────────────────────────────────────────────────
@@ -90,6 +96,7 @@ FishData.Fish = {
 		color     = "Dark green",
 		baseValue = 40,
 		baitTag   = "predator",
+		spawnTime = "day",
 	},
 	{
 		name      = "Golden Koi",
@@ -100,6 +107,7 @@ FishData.Fish = {
 		color     = "Bright yellow",
 		baseValue = 55,
 		baitTag   = nil,
+		spawnTime = "day",
 	},
 	{
 		name      = "Shadow Carp",
@@ -110,6 +118,7 @@ FishData.Fish = {
 		color     = "Dark indigo",
 		baseValue = 48,
 		baitTag   = "nocturnal",
+		spawnTime = "night",
 	},
 	{
 		name      = "Lanternfish",
@@ -120,6 +129,7 @@ FishData.Fish = {
 		color     = "Cyan",
 		baseValue = 52,
 		baitTag   = "nocturnal",
+		spawnTime = "night",
 	},
 	{
 		name      = "River Dart",
@@ -130,6 +140,7 @@ FishData.Fish = {
 		color     = "Silver",
 		baseValue = 45,
 		baitTag   = "predator",
+		spawnTime = "both",
 	},
 
 	-- ── Legendary ─────────────────────────────────────────────
@@ -142,6 +153,8 @@ FishData.Fish = {
 		color     = "White",
 		baseValue = 130,
 		baitTag   = "nocturnal",
+		spawnTime = "night",
+		hint      = "Fish at night using nocturnal bait near a glowing hotspot.",
 	},
 	{
 		name      = "Void Eel",
@@ -152,6 +165,8 @@ FishData.Fish = {
 		color     = "Black",
 		baseValue = 160,
 		baitTag   = "nocturnal",
+		spawnTime = "night",
+		hint      = "Emerges only at night in the deepest waters. Use nocturnal bait.",
 	},
 }
 
