@@ -44,6 +44,108 @@ statusLabel.Font                   = Enum.Font.GothamBold
 statusLabel.RichText               = true
 statusLabel.Parent                 = statusFrame
 
+-- ============================================================
+-- CATCH POPUP  ("You caught a Bass!")
+-- ============================================================
+local CATCH_RARITY_COLORS = {
+	Common    = Color3.fromRGB(200, 200, 200),
+	Uncommon  = Color3.fromRGB(80,  215, 100),
+	Rare      = Color3.fromRGB(80,  150, 255),
+	Legendary = Color3.fromRGB(255, 200,  40),
+}
+local CATCH_TAGLINES = {
+	Common    = { "Nice catch!", "Reel deal!", "Fresh from the water!" },
+	Uncommon  = { "Pretty good!", "Not bad at all!", "That's a keeper!" },
+	Rare      = { "Whoa, that's rare!", "Lucky hook!", "Impressive!" },
+	Legendary = { "LEGENDARY!!!", "ONE IN A MILLION!", "You're a fishing god!" },
+}
+
+local catchPopup = Instance.new("Frame")
+catchPopup.Name              = "CatchPopup"
+catchPopup.Size              = UDim2.new(0, 420, 0, 110)
+catchPopup.Position          = UDim2.new(0.5, -210, 0.5, -200)
+catchPopup.BackgroundColor3  = Color3.fromRGB(8, 18, 34)
+catchPopup.BackgroundTransparency = 0.1
+catchPopup.BorderSizePixel   = 0
+catchPopup.Visible           = false
+catchPopup.ZIndex            = 20
+catchPopup.Parent            = screenGui
+Instance.new("UICorner", catchPopup).CornerRadius = UDim.new(0, 12)
+
+local catchStroke = Instance.new("UIStroke", catchPopup)
+catchStroke.Color     = Color3.fromRGB(100, 180, 255)
+catchStroke.Thickness = 2.5
+
+local catchFishLbl = Instance.new("TextLabel", catchPopup)
+catchFishLbl.Name              = "FishName"
+catchFishLbl.Size              = UDim2.new(1, -16, 0, 48)
+catchFishLbl.Position          = UDim2.new(0, 8, 0, 8)
+catchFishLbl.BackgroundTransparency = 1
+catchFishLbl.Text              = "You caught a Bass!"
+catchFishLbl.TextColor3        = Color3.fromRGB(255, 255, 255)
+catchFishLbl.TextScaled        = true
+catchFishLbl.Font              = Enum.Font.GothamBold
+catchFishLbl.ZIndex            = 21
+
+local catchSizeLbl = Instance.new("TextLabel", catchPopup)
+catchSizeLbl.Name              = "FishSize"
+catchSizeLbl.Size              = UDim2.new(1, -16, 0, 28)
+catchSizeLbl.Position          = UDim2.new(0, 8, 0, 52)
+catchSizeLbl.BackgroundTransparency = 1
+catchSizeLbl.Text              = "It's 24.5cm!"
+catchSizeLbl.TextColor3        = Color3.fromRGB(200, 200, 200)
+catchSizeLbl.TextScaled        = true
+catchSizeLbl.Font              = Enum.Font.Gotham
+catchSizeLbl.ZIndex            = 21
+
+local catchTagLbl = Instance.new("TextLabel", catchPopup)
+catchTagLbl.Name               = "Tagline"
+catchTagLbl.Size               = UDim2.new(1, -16, 0, 22)
+catchTagLbl.Position           = UDim2.new(0, 8, 0, 80)
+catchTagLbl.BackgroundTransparency = 1
+catchTagLbl.Text               = "Nice catch!"
+catchTagLbl.TextColor3         = Color3.fromRGB(160, 160, 160)
+catchTagLbl.TextScaled         = true
+catchTagLbl.Font               = Enum.Font.GothamBold
+catchTagLbl.ZIndex             = 21
+
+local catchTween = nil
+local function showCatchPopup(name, size, rarity)
+	if catchTween then catchTween:Cancel() end
+
+	local rarColor = CATCH_RARITY_COLORS[rarity] or CATCH_RARITY_COLORS.Common
+	local taglines = CATCH_TAGLINES[rarity] or CATCH_TAGLINES.Common
+	local tagline  = taglines[math.random(1, #taglines)]
+
+	catchStroke.Color       = rarColor
+	catchFishLbl.Text       = "You caught a " .. name .. "!"
+	catchFishLbl.TextColor3 = rarColor
+	catchSizeLbl.Text       = "It's " .. string.format("%.1f", size) .. "cm!"
+	catchTagLbl.Text        = tagline
+
+	-- Pop in from above
+	catchPopup.Position  = UDim2.new(0.5, -210, 0.5, -240)
+	catchPopup.Visible   = true
+	catchPopup.BackgroundTransparency = 0.1
+
+	TweenService:Create(catchPopup,
+		TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+		{ Position = UDim2.new(0.5, -210, 0.5, -200) }
+	):Play()
+
+	-- Hold, then fade out
+	task.delay(2.8, function()
+		catchTween = TweenService:Create(catchPopup,
+			TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+			{ Position = UDim2.new(0.5, -210, 0.5, -260), BackgroundTransparency = 1 }
+		)
+		catchTween:Play()
+		catchTween.Completed:Connect(function()
+			catchPopup.Visible = false
+		end)
+	end)
+end
+
 -- Tracked currency values (updated by server events, used for display sync)
 local trackedCoins = 0
 local trackedStars = 0
@@ -207,6 +309,7 @@ invButton.Text             = "My Fish"
 invButton.TextColor3       = Color3.fromRGB(255, 255, 255)
 invButton.TextScaled       = true
 invButton.Font             = Enum.Font.GothamBold
+invButton.Visible          = false   -- hidden until player nears the lodge
 invButton.Parent           = screenGui
 Instance.new("UICorner", invButton).CornerRadius = UDim.new(0, 10)
 
@@ -755,9 +858,12 @@ refreshSellPane = function()
 
 	local totalFish = #inv
 	sellAllBtn.Activated:Connect(function()
+		local anySold = false
 		for _ = 1, totalFish do
-			Remotes.SellFish:InvokeServer(1)
+			local ok = Remotes.SellFish:InvokeServer(1)
+			if ok then anySold = true end
 		end
+		if anySold then Remotes.TutorialFishSold:FireServer() end
 		task.delay(0.2, function()
 			refreshSellPane()
 			refreshShop()
@@ -802,6 +908,7 @@ refreshSellPane = function()
 		sellBtn.Activated:Connect(function()
 			local sold, _ = Remotes.SellFish:InvokeServer(idx)
 			if sold then
+				Remotes.TutorialFishSold:FireServer()
 				refreshSellPane()
 				refreshShop()
 			end
@@ -1285,9 +1392,11 @@ task.spawn(function()
 end)
 
 -- FishingClient handles the minigame UI; we also listen here to update caughtFishSet
+-- and show the "You caught a X!" popup.
 Remotes.FishCaught.OnClientEvent:Connect(function(info)
 	if info and info.name then
 		caughtFishSet[info.name] = true
+		showCatchPopup(info.name, info.size or 0, info.rarity or "Common")
 	end
 end)
 
@@ -1304,6 +1413,7 @@ journalButton.Text             = "Journal"
 journalButton.TextColor3       = Color3.fromRGB(255, 255, 255)
 journalButton.TextScaled       = true
 journalButton.Font             = Enum.Font.GothamBold
+journalButton.Visible          = false   -- hidden until player nears the lodge
 journalButton.Parent           = screenGui
 Instance.new("UICorner", journalButton).CornerRadius = UDim.new(0, 10)
 

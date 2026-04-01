@@ -69,6 +69,16 @@ Remotes.WeatherChange   = getOrCreate("RemoteEvent",    "WeatherChange")
 -- Client asks for caught fish names {name=true, ...}
 Remotes.GetCaughtFish   = getOrCreate("RemoteFunction", "GetCaughtFish")
 
+-- ── Tutorial ──────────────────────────────────────────────────
+-- Server → Client: current step number (0–5); fires on join and on advance
+Remotes.TutorialStep      = getOrCreate("RemoteEvent",    "TutorialStep")
+-- Server → Client: array of {speaker, text} lines for NPC dialog
+Remotes.TutorialNPCDialog = getOrCreate("RemoteEvent",    "TutorialNPCDialog")
+-- Client → Server: player successfully sold a fish (hooks into sell buttons)
+Remotes.TutorialFishSold  = getOrCreate("RemoteEvent",    "TutorialFishSold")
+-- Client → Server: player requests travel to main world (unused if TeleportAsync is server-side)
+Remotes.RequestTravel     = getOrCreate("RemoteEvent",    "RequestTravel")
+
 -- ── Debug (Studio only) ───────────────────────────────────────
 Remotes.DebugGiveCoins = getOrCreate("RemoteEvent", "DebugGiveCoins")
 Remotes.DebugGiveStars = getOrCreate("RemoteEvent", "DebugGiveStars")

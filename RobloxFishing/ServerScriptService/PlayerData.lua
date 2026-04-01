@@ -36,6 +36,7 @@ local DEFAULT = {
 	},
 	completedAchievements = {},
 	caughtFishNames = {},   -- set: fishName → true (persists across sessions)
+	tutorialStep    = 0,    -- 0=not started … 5=ready to travel, 6=completed
 }
 
 local function deepCopy(t)
